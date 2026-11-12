@@ -1,0 +1,3274 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1b2432">
+<title>Мой город — стратегия</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --bg: #0e1626;
+    --bg2: #182238;
+    --panel: rgba(30, 42, 62, .92);
+    --panel2: rgba(44, 60, 86, .92);
+    --accent: #5ac8fa;
+    --accent2: #7c9cff;
+    --good: #5fd68a;
+    --bad: #ff6b6b;
+    --gold: #ffd166;
+    --gem: #b388ff;
+    --text: #eaf2ff;
+    --muted: #93a6c2;
+    --line: rgba(255,255,255,.09);
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    user-select: none;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  h1 { font-size: 28px; letter-spacing: 2px; margin-bottom: 2px; color: var(--accent); }
+  .subtitle { color: var(--muted); margin-bottom: 12px; font-size: 13px; }
+  #game { width: 960px; max-width: 100%; background: var(--panel); border-radius: 14px; padding: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+
+  header#top {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    flex-wrap: wrap; margin-bottom: 12px; padding-bottom: 12px;
+    border-bottom: 1px solid rgba(255,255,255,.08);
+  }
+  .stat { background: var(--panel2); padding: 6px 14px; border-radius: 8px; font-size: 15px; white-space: nowrap; }
+  .stat b { color: var(--gold); }
+  .stat .val { font-weight: 700; margin-left: 4px; }
+  .stat.red .val { color: var(--bad); }
+  .stat.season .val { font-size: 13px; }
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; }
+  .geotag-row { display: flex; align-items:center; gap:4px; font-size:12px; color:var(--muted); }
+  .rate { font-size: 11px; color: var(--muted); display: block; line-height:1.2; }
+  .rate .cap { color: var(--good); }
+
+  #resbar { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-bottom:12px; }
+
+  #disasters {
+    background: var(--panel2); border: 1px solid rgba(239,83,80,.4); color: #ffcdd2;
+    padding: 8px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 12px;
+    min-height: 36px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  #disasters .btn { margin-left: auto; }
+
+  .grid-wrap { overflow-x: auto; margin-bottom: 12px; }
+  canvas { display: block; margin: 0 auto; border-radius: 8px; background: #3a4a36; cursor: crosshair; touch-action: manipulation; }
+
+  .bar-title {
+    width:100%; display:flex; justify-content: space-between; align-items:center;
+    color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing:1px;
+    margin: 6px 0 8px; user-select:none;
+  }
+  .bar-title button { padding: 2px 10px; font-size: 11px; background: var(--panel2); color: var(--accent); }
+  .panel { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .card {
+    background: var(--panel2); border: 1px solid rgba(255,255,255,.08); border-radius: 10px;
+    padding: 8px 12px; flex: 1 1 150px; cursor: pointer; transition: all .15s; text-align: center; position: relative;
+  }
+  .card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .card.sel { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(255,213,79,.35); }
+  .card.dis { opacity: .45; cursor: not-allowed; }
+  .card .name { font-weight: 700; font-size: 14px; }
+  .card .cost { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .card .desc { font-size: 11px; color: var(--muted); margin-top: 4px; line-height:1.3; }
+  .card .info { font-size: 12px; color: var(--accent); margin-top: 4px; font-weight:600; }
+  .card .req { font-size: 10px; color: var(--bad); margin-top: 3px; }
+  .card.done { border-color: var(--good); opacity:.75; }
+  .card.done .name::after { content:' ✓'; color: var(--good); }
+  .card.fert { border-top: 3px solid #8bc34a; }
+  .card.fert .fertval { font-size: 10px; color: #8bc34a; }
+
+  #log {
+    background: var(--panel2); border-radius: 8px; padding: 8px 12px; font-size: 12px;
+    color: var(--muted); height: 46px; overflow: hidden; display: flex; flex-direction: column; gap: 2px;
+  }
+  #log div { animation: fadein .3s; }
+  @keyframes fadein { from {opacity:0; transform:translateY(4px);} to {opacity:1;} }
+  .log-evt { color: var(--gold); }
+  .log-bad { color: var(--bad); }
+  .log-good { color: var(--good); }
+
+  button { background: var(--accent); border: none; color: #0f1a2b; font-weight: 700; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+  button:hover { filter: brightness(1.1); }
+  button.grey { background: var(--panel2); color: var(--text); }
+
+  #overlay { position: fixed; inset: 0; background: rgba(10,15,25,.9); display: flex; align-items: center; justify-content: center; z-index: 100; }
+  #overlay.hidden { display: none; }
+  .modal { background: var(--panel); max-width: 560px; width: 92%; border-radius: 14px; padding: 26px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+  .modal h2 { font-size: 26px; margin-bottom: 10px; }
+  .modal p { color: var(--muted); margin-bottom: 8px; line-height:1.5; }
+  .statline { display: flex; justify-content: center; gap: 20px; margin: 14px 0; flex-wrap:wrap; }
+  .statline div { background: var(--panel2); padding: 8px 14px; border-radius: 8px; }
+  .statline b { display:block; font-size: 20px; }
+  .modal button { margin-top: 12px; padding: 12px 30px; font-size: 15px; }
+
+  #tutorial {
+    background: rgba(79,195,247,.1); border: 1px solid rgba(79,195,247,.3); border-radius: 8px;
+    padding: 8px 14px; font-size: 12.5px; color: #c4e6fa; margin-bottom: 10px;
+  }
+  #tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; align-items:center; }
+  .tabbtn { background:var(--panel2); color:var(--muted); font-weight:600; padding:7px 12px; font-size:12.5px; border-radius:8px; border:1px solid transparent; }
+  .tabbtn.active { background:var(--accent); color:#0f1a2b; }
+ .tabbtn.has-dot { position:relative; }
+ .tabbtn.has-dot::after { content:''; position:absolute; top:-3px; right:-3px; width:8px; height:8px; border-radius:50%; background:#ff6b6b; box-shadow:0 0 0 2px var(--panel); }
+ #offer { display:none; align-items:center; gap:8px; margin:8px 0; padding:8px 10px; border:1px solid rgba(255,209,102,.45); border-radius:10px; background:rgba(255,209,102,.07); font-size:12px; }
+ #offer.show { display:flex; }
+ #offer b { flex:1; font-weight:600; }
+ #offer button { margin:0; padding:4px 10px; font-size:12px; }
+  #btn-demolish.on { background:var(--bad); color:#fff; }
+  .pane { display:none; }
+  .pane.active { display:block; }
+  .card.god.sel, .card.ideo.sel { border-color:var(--gold); box-shadow:0 0 0 2px rgba(255,213,79,.35); }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; width:100%; margin-bottom:6px; }
+  .chip { background:var(--panel2); color:var(--muted); border:1px solid transparent; padding:4px 10px; border-radius:20px; font-size:11.5px; font-weight:600; cursor:pointer; }
+  .chip.active { border-color:var(--accent); color:var(--accent); }
+  .skillline { font-size:11px; color:var(--muted); margin-top:2px; }
+
+  /* ---------- Адаптация под Telegram / телефон ---------- */
+  canvas { width: 100%; height: auto; max-width: 900px; }
+  body { touch-action: manipulation; }
+  .grid-wrap { -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; overflow-y: hidden; }
+  body.tg-light .card { border-color: rgba(0,0,0,.10); }
+  body.tg-light header#top { border-bottom-color: rgba(0,0,0,.10); }
+  body.tg-light #tutorial { border-color: rgba(0,80,140,.25); }
+  body.tg-light .stat, body.tg-light .card, body.tg-light #log,
+  body.tg-light #tutorial, body.tg-light .chip, body.tg-light .tabbtn { box-shadow: none; }
+
+  @media (max-width: 720px) {
+    body { padding: 8px 8px calc(10px + env(safe-area-inset-bottom)); }
+    h1 { font-size: 20px; letter-spacing: 1px; }
+    .subtitle { font-size: 11px; margin-bottom: 8px; }
+    #game { padding: 10px; border-radius: 12px; }
+    header#top { gap: 6px; margin-bottom: 8px; padding-bottom: 8px; }
+    .stat { font-size: 12px; padding: 4px 8px; }
+    .stat .rate { font-size: 10px; }
+    .controls { gap: 4px; }
+    button { padding: 7px 10px; font-size: 12px; border-radius: 7px; }
+    .tabbtn { padding: 6px 9px; font-size: 11.5px; }
+    #tabs { gap: 4px; }
+    .card { flex: 1 1 104px; padding: 6px 7px; border-radius: 8px; }
+    .card .name { font-size: 12.5px; }
+    .card .cost, .card .info { font-size: 10.5px; }
+    .card .desc { font-size: 10px; }
+    #tutorial { font-size: 11px; padding: 6px 9px; }
+    .chips .chip { font-size: 10.5px; padding: 3px 8px; }
+    #log { font-size: 11px; height: 54px; }
+    canvas { min-width: 640px; }
+    .grid-wrap { border-radius: 8px; }
+    .modal { padding: 20px; }
+    .modal h2 { font-size: 21px; }
+  }
+
+  /* На узких экранах с мышью карта масштабируется без горизонтальной прокрутки */
+  @media (max-width: 720px) and (pointer: fine) {
+    canvas { min-width: 0; }
+  }
+
+  /* ============ ОФОРМЛЕНИЕ 2.0 ============ */
+  body {
+    background:
+      radial-gradient(1200px 600px at 10% -10%, rgba(90,200,250,.16), transparent 60%),
+      radial-gradient(900px 500px at 110% 10%, rgba(124,156,255,.14), transparent 60%),
+      radial-gradient(700px 500px at 50% 120%, rgba(179,136,255,.10), transparent 60%),
+      linear-gradient(160deg, var(--bg) 0%, var(--bg2) 100%);
+    background-attachment: fixed;
+  }
+  h1 {
+    background: linear-gradient(92deg, #9be7ff, #5ac8fa 40%, #93a6ff 80%);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 2px 12px rgba(90,200,250,.25));
+    font-weight: 800;
+  }
+  .subtitle { opacity: .9; }
+
+  #game {
+    background: linear-gradient(180deg, rgba(32,46,68,.86), rgba(20,30,48,.92));
+    border: 1px solid var(--line);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 24px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06);
+  }
+
+  .stat {
+    background: linear-gradient(180deg, rgba(60,80,110,.55), rgba(38,52,76,.55));
+    border: 1px solid var(--line);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+    transition: transform .12s, border-color .12s;
+  }
+  .stat:hover { transform: translateY(-1px); border-color: rgba(90,200,250,.35); }
+  .stat b .val, .stat .val { color: var(--gold); }
+
+  #tutorial {
+    background: linear-gradient(180deg, rgba(90,200,250,.10), rgba(90,200,250,.04));
+    border: 1px solid rgba(90,200,250,.28);
+    border-radius: 12px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+  }
+
+  #tabs {
+    background: rgba(12,20,34,.55);
+    border: 1px solid var(--line);
+    padding: 5px; border-radius: 12px;
+  }
+  .tabbtn {
+    border: none; background: transparent; color: var(--muted);
+    transition: background .18s, color .18s, transform .12s;
+  }
+  .tabbtn:hover { color: var(--text); background: rgba(255,255,255,.05); }
+  .tabbtn.active {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #08121f;
+    box-shadow: 0 6px 16px rgba(90,200,250,.28);
+  }
+  #btn-demolish.on {
+    background: linear-gradient(135deg, #ff7a7a, #ff4d4d);
+    box-shadow: 0 6px 16px rgba(255,90,90,.3);
+    color: #fff;
+  }
+
+  button {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #071120;
+    border-radius: 10px;
+    box-shadow: 0 6px 16px rgba(90,200,250,.18), inset 0 1px 0 rgba(255,255,255,.35);
+    transition: transform .12s, filter .12s, box-shadow .12s;
+  }
+  button:hover { transform: translateY(-1px); filter: brightness(1.06); box-shadow: 0 10px 22px rgba(90,200,250,.26); }
+  button:active { transform: translateY(1px) scale(.99); }
+  button.grey {
+    background: linear-gradient(180deg, rgba(70,92,124,.75), rgba(44,60,86,.75));
+    color: var(--text);
+    border: 1px solid var(--line);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+  }
+
+  .card {
+    background: linear-gradient(180deg, rgba(58,78,108,.5), rgba(34,48,70,.6));
+    border: 1px solid var(--line);
+    box-shadow: 0 6px 16px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.04);
+  }
+  .card:hover {
+    border-color: rgba(90,200,250,.55);
+    box-shadow: 0 12px 26px rgba(0,0,0,.28), 0 0 0 1px rgba(90,200,250,.25);
+  }
+  .card.sel {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 2px rgba(255,209,102,.4), 0 10px 24px rgba(255,209,102,.15);
+  }
+  .card.dis { opacity: .42; }
+  .card.done { border-color: rgba(95,214,138,.6); }
+  .card .cost { font-variant-numeric: tabular-nums; }
+
+  .chip { border: 1px solid transparent; background: rgba(255,255,255,.05); }
+  .chip:hover { color: var(--text); border-color: rgba(255,255,255,.18); }
+  .chip.active {
+    color: #071120;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-color: transparent;
+    box-shadow: 0 4px 12px rgba(90,200,250,.25);
+  }
+
+  #log {
+    background: rgba(10,18,30,.6);
+    border: 1px solid var(--line);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+  }
+
+  /* Полоски прогресса ресурсов */
+  .respill { min-width: 96px; }
+  .respill .bar {
+    height: 4px; border-radius: 3px; overflow: hidden;
+    background: rgba(255,255,255,.09); margin-top: 4px;
+  }
+  .respill .bar i {
+    display: block; height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    transition: width .4s ease;
+  }
+  .respill.warn .bar i { background: linear-gradient(90deg, #ffb74d, #ff6b6b); }
+  .respill.warn .val { color: var(--bad); }
+
+  /* Канвас и FX-слой */
+  #boardWrap { position: relative; }
+  #fx { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; border-radius: 8px; background: transparent !important; }
+  #cv { position: relative; z-index: 1; }
+  #fx { z-index: 2; }
+
+  /* Тосты */
+  #toasts {
+    position: fixed; left: 50%; top: 14px; transform: translateX(-50%);
+    z-index: 300; display: flex; flex-direction: column; gap: 8px;
+    pointer-events: none; width: max-content; max-width: 92vw;
+  }
+  .toast {
+    background: rgba(16,26,42,.95);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    color: var(--text);
+    padding: 9px 14px; border-radius: 10px; font-size: 13px;
+    box-shadow: 0 12px 30px rgba(0,0,0,.45);
+    animation: toastIn .25s ease both;
+  }
+  .toast.good { border-left-color: var(--good); }
+  .toast.bad { border-left-color: var(--bad); }
+  .toast.gem { border-left-color: var(--gem); }
+  .toast.out { animation: toastOut .25s ease both; }
+  @keyframes toastIn { from { opacity: 0; transform: translateY(-10px) scale(.96); } to { opacity: 1; transform: none; } }
+  @keyframes toastOut { to { opacity: 0; transform: translateY(-8px) scale(.97); } }
+
+  /* Магазин */
+  .shop-section { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+  .shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; width: 100%; }
+  .shop-item {
+    display: flex; gap: 10px; align-items: center;
+    background: linear-gradient(180deg, rgba(60,80,110,.45), rgba(32,46,68,.6));
+    border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px;
+    transition: transform .12s, border-color .12s, box-shadow .12s;
+  }
+  .shop-item:hover { transform: translateY(-2px); border-color: rgba(179,136,255,.5); box-shadow: 0 12px 26px rgba(0,0,0,.28); }
+  .shop-item .ico { font-size: 26px; line-height: 1; filter: drop-shadow(0 2px 6px rgba(0,0,0,.4)); }
+  .shop-item .info { flex: 1; min-width: 0; }
+  .shop-item .t { font-weight: 700; font-size: 13px; }
+  .shop-item .d { font-size: 11px; color: var(--muted); line-height: 1.3; }
+  .shop-item .buy {
+    border: none; padding: 7px 10px; border-radius: 9px; font-size: 12px; white-space: nowrap;
+    background: linear-gradient(135deg, #b388ff, #7c9cff); color: #0b1020;
+    box-shadow: 0 6px 14px rgba(179,136,255,.25);
+  }
+  .shop-item .buy.stars { background: linear-gradient(135deg, #ffd166, #ffb347); }
+  .shop-item .buy.premium { background: linear-gradient(135deg, #ffd166, #ff8fab); }
+  .shop-item .buy:disabled { opacity: .45; filter: grayscale(.4); cursor: not-allowed; }
+  .shop-item .buy:not(:disabled):hover { filter: brightness(1.08); transform: translateY(-1px); }
+
+  .gems-pill {
+    background: linear-gradient(135deg, rgba(179,136,255,.28), rgba(124,156,255,.22));
+    border-color: rgba(179,136,255,.45) !important;
+  }
+  .gems-pill b { color: #d9c7ff; }
+
+  .badge-new {
+    position: absolute; top: -6px; right: -6px;
+    background: linear-gradient(135deg, #ff6b6b, #ff8fab);
+    color: #fff; font-size: 9px; font-weight: 800; letter-spacing: .5px;
+    padding: 2px 6px; border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(255,107,107,.4);
+  }
+
+  /* Цели */
+  .goalbox {
+    width: 100%; display: flex; gap: 10px; flex-wrap: wrap;
+    background: rgba(10,18,30,.5); border: 1px solid var(--line);
+    border-radius: 12px; padding: 10px 12px; margin-bottom: 10px;
+  }
+  .goal { flex: 1 1 150px; min-width: 140px; }
+  .goal .lbl { font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; }
+  .goal .tr { height: 6px; border-radius: 4px; background: rgba(255,255,255,.09); margin-top: 5px; overflow: hidden; }
+  .goal .tr i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--good), #9be7ff); transition: width .5s ease; }
+
+  /* Вступительный экран */
+  .intro-hero { text-align: center; }
+  .intro-hero .big { font-size: 46px; line-height: 1; margin-bottom: 6px; filter: drop-shadow(0 6px 18px rgba(90,200,250,.35)); }
+  .intro-hero h2 { font-size: 24px; margin-bottom: 6px; }
+  .intro-list { text-align: left; display: flex; flex-direction: column; gap: 6px; margin: 12px 0; }
+  .intro-list div { background: rgba(255,255,255,.05); border: 1px solid var(--line); border-radius: 9px; padding: 7px 10px; font-size: 12.5px; color: var(--text); }
+  .intro-list span { color: var(--muted); }
+
+  @keyframes pop { 0% { transform: scale(.9); } 60% { transform: scale(1.04); } 100% { transform: none; } }
+  .pop { animation: pop .25s ease; }
+  @keyframes glowPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(255,209,102,.35); } 50% { box-shadow: 0 0 0 6px rgba(255,209,102,0); } }
+  .glow { animation: glowPulse 1.8s ease-in-out infinite; }
+
+  /* ---------- Прогресс, задания, темы ---------- */
+  body.theme-aurora { --accent:#c39bff; --accent2:#7c9cff; }
+  body.theme-sunset { --accent:#ffb347; --accent2:#ff7a7a; }
+  body.theme-forest { --accent:#5fd68a; --accent2:#9be7ff; }
+
+  .lvlbar { width:100%; display:flex; align-items:center; gap:10px; background:rgba(10,18,30,.5);
+    border:1px solid var(--line); border-radius:12px; padding:8px 12px; margin-bottom:10px; }
+  .lvlbar .badge { font-size:22px; }
+  .lvlbar .grow { flex:1; }
+  .lvlbar .cap { display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-bottom:4px; }
+  .lvlbar .tr { height:7px; border-radius:5px; background:rgba(255,255,255,.09); overflow:hidden; }
+  .lvlbar .tr i { display:block; height:100%; width:0; background:linear-gradient(90deg,var(--gold),var(--accent)); transition:width .45s ease; }
+
+  .quest { width:100%; display:flex; gap:10px; align-items:center; background:linear-gradient(180deg,rgba(60,80,110,.45),rgba(32,46,68,.6));
+    border:1px solid var(--line); border-radius:12px; padding:10px 12px; margin-bottom:8px; }
+  .quest .qi { font-size:22px; }
+  .quest .qb { flex:1; min-width:0; }
+  .quest .qt { font-weight:700; font-size:13px; display:flex; justify-content:space-between; gap:8px; }
+  .quest .qd { font-size:11px; color:var(--muted); margin-top:2px; }
+  .quest .qtr { height:5px; border-radius:4px; background:rgba(255,255,255,.09); margin-top:5px; overflow:hidden; }
+  .quest .qtr i { display:block; height:100%; width:0; background:linear-gradient(90deg,var(--good),var(--accent)); transition:width .4s ease; }
+  .quest.done { border-color:rgba(95,214,138,.55); box-shadow:0 0 0 1px rgba(95,214,138,.2); }
+  .quest .qbtn { border:none; padding:7px 10px; border-radius:9px; font-size:12px; font-weight:700;
+    background:linear-gradient(135deg,var(--good),#9be7ff); color:#071120; white-space:nowrap; }
+  .quest .qbtn:disabled { opacity:.45; filter:grayscale(.4); cursor:default; }
+
+  #advisor { display:flex; align-items:center; gap:8px; width:100%; font-size:12px;
+    background:rgba(90,200,250,.08); border:1px solid rgba(90,200,250,.25); border-radius:10px;
+    padding:8px 12px; margin-bottom:10px; color:var(--text); }
+  #advisor b { color:var(--accent); }
+
+  /* ---------- Улучшения, достижения, события ---------- */
+  #btn-upgrade.on { background:linear-gradient(135deg,#9be7ff,#5ac8fa); color:#04121f; }
+
+  .ach { width:100%; display:flex; gap:10px; align-items:center; background:linear-gradient(180deg,rgba(60,80,110,.45),rgba(32,46,68,.6));
+    border:1px solid var(--line); border-radius:12px; padding:9px 12px; margin-bottom:8px; }
+  .ach.done { border-color:rgba(95,214,138,.55); }
+  .ach .ai { font-size:20px; }
+  .ach .an { font-weight:700; font-size:13px; }
+  .ach .ad { font-size:11px; color:var(--muted); }
+  .ach .ar { margin-left:auto; font-size:12px; color:var(--gold); font-weight:700; white-space:nowrap; }
+  .ach.done .ar { color:var(--good); }
+
+  #eventBox { position:fixed; inset:0; background:rgba(8,12,20,.72); backdrop-filter:blur(6px);
+    display:flex; align-items:center; justify-content:center; z-index:400; }
+  #eventBox.hidden { display:none; }
+  .event-card { max-width:430px; width:92%; background:linear-gradient(180deg,rgba(38,54,80,.98),rgba(22,32,50,.98));
+    border:1px solid var(--line); border-radius:16px; padding:20px; box-shadow:0 24px 60px rgba(0,0,0,.6); text-align:center; }
+  .event-card .evi { font-size:34px; line-height:1; margin-bottom:6px; }
+  .event-card h3 { font-size:19px; margin-bottom:8px; }
+  .event-card p { color:var(--muted); font-size:13px; line-height:1.45; margin-bottom:14px; }
+  .event-card .evbtns { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+  .event-card button { padding:9px 14px; font-size:13px; }
+
+  /* Подсказка при наведении на клетку */
+  #tip {
+    position: fixed; z-index: 350; pointer-events: none;
+    background: rgba(12,20,32,.95); border: 1px solid var(--line);
+    border-radius: 10px; padding: 8px 10px; font-size: 12px; line-height: 1.35;
+    color: var(--text); box-shadow: 0 12px 28px rgba(0,0,0,.5);
+    max-width: 240px; backdrop-filter: blur(6px);
+  }
+  #tip.hidden { display: none; }
+  #tip b { color: var(--gold); }
+  #tip .muted { color: var(--muted); font-size: 11px; margin-top: 2px; }
+</style>
+</head>
+<body>
+  <h1>🏙️ МОЙ ГОРОД</h1>
+  <div class="subtitle">Градостроительная стратегия — вырастите из деревни в мегаполис</div>
+
+  <div id="tutorial">
+    💡 Время идёт медленно — успевайте планировать. <b>Зданиям нужны работники</b> (🎫), у каждого жителя свои <b>навыки</b> — сильный работник даёт больше. <b>Дороги 🛣</b> ускоряют путь от дома к работе (дальние здания работают хуже). <b>Снос 🔨</b> возвращает половину ресурсов. Развивайте <b>скотоводство 🐄, ремёсла 🔥🧵🍺, рудники ⛏</b> (медь, железо, серебро, золото). Исследуйте <b>технологии</b>, выбирайте <b>бога 🕯</b> и <b>идеологию 🏛</b> — они дают бонусы. Стройте храмы, чтобы копить веру и получать <b>благословения</b>.
+  </div>
+
+  <div id="game">
+    <header id="top">
+      <div class="stat">📅 День <b id="st-day">1</b></div>
+      <div class="stat season">🌤 <span id="season-name">Весна</span> <b class="val" id="season-note"></b></div>
+      <div class="stat" title="Жители (больные красным)">👥 <b id="st-pop">0/15</b></div>
+      <div class="stat" title="Оборона города">🛡 <b id="st-sec">0</b></div>
+      <div class="stat" title="Воины (стража + лучники)">⚔️ <b id="st-sold">0</b></div>
+      <div class="stat" title="Вера (от храмов)">🕯 <b id="st-faith">0</b></div>
+      <div class="stat gems-pill" title="Самоцветы — премиальная валюта">💎 <b id="st-gems">0</b></div>
+      <div class="stat" title="Уровень города">🏅 <b id="st-level">1</b></div>
+      <div class="stat"><span id="geo">⚖️ Настроение</span> <b id="st-happy" class="val">0%</b></div>
+      <div class="controls">
+        <button class="grey" id="btn-speed">▶x1</button>
+        <button class="grey" id="btn-pause">⏸ Пауза</button>
+        <button class="grey" id="btn-save">💾</button>
+      </div>
+    </header>
+
+    <div class="grid-wrap" id="boardWrap">
+      <canvas id="cv" width="900" height="480"></canvas>
+      <canvas id="fx" width="900" height="480"></canvas>
+      <div id="tip" class="hidden"></div>
+    </div>
+
+    <div class="lvlbar" id="lvlBar">
+      <div class="badge">🏅</div>
+      <div class="grow">
+        <div class="cap"><span>Уровень <b id="lvlNum">1</b></span><span id="lvlXp">0 / 100 XP</span></div>
+        <div class="tr"><i id="lvlFill"></i></div>
+      </div>
+      <div class="badge" id="lvlStreak" title="Серия входов">🔥0</div>
+    </div>
+
+    <div id="advisor"></div>
+    <div id="offer"></div>
+
+    <div id="goalBox" class="goalbox"></div>
+
+    <div id="resbar"></div>
+
+    <div id="tabs">
+      <button class="tabbtn active" data-tab="build">🏗 Строить</button>
+      <button class="tabbtn" data-tab="tech">🔬 Технологии</button>
+      <button class="tabbtn" data-tab="religion">🕯 Религия</button>
+      <button class="tabbtn" data-tab="ideology">🏛 Идеология</button>
+      <button class="tabbtn" data-tab="people">👥 Жители</button>
+      <button class="tabbtn" data-tab="shop">💎 Магазин</button>
+      <button class="tabbtn" data-tab="quests">🎯 Задания</button>
+      <button class="tabbtn" data-tab="ach">🏆 Достижения</button>
+      <button class="tabbtn" id="btn-demolish">🔨 Снос</button>
+      <button class="tabbtn" id="btn-upgrade">⬆ Улучшение</button>
+    </div>
+
+    <div class="pane active" id="pane-build">
+      <div class="chips" id="buildChips"></div>
+      <div class="panel" id="buildBar"></div>
+    </div>
+
+    <div class="pane" id="pane-tech">
+      <div class="panel" id="techPanel"></div>
+    </div>
+
+    <div class="pane" id="pane-religion">
+      <div class="panel" id="religionPanel"></div>
+    </div>
+
+    <div class="pane" id="pane-ideology">
+      <div class="panel" id="ideologyPanel"></div>
+    </div>
+
+    <div class="pane" id="pane-people">
+      <div class="panel" id="peoplePanel"></div>
+    </div>
+
+    <div class="pane" id="pane-shop">
+      <div class="panel" id="shopPanel"></div>
+    </div>
+
+    <div class="pane" id="pane-quests">
+      <div class="panel" id="questsPanel"></div>
+    </div>
+
+    <div class="pane" id="pane-ach">
+      <div class="panel" id="achPanel"></div>
+    </div>
+
+    <div id="disasters"></div>
+    <div id="log"></div>
+  </div>
+
+  <div id="eventBox" class="hidden">
+    <div class="event-card">
+      <div class="evi" id="evIcon">⚖️</div>
+      <h3 id="evTitle">Событие</h3>
+      <p id="evText"></p>
+      <div class="evbtns" id="evButtons"></div>
+    </div>
+  </div>
+
+  <div id="toasts"></div>
+
+  <div id="overlay" class="hidden">
+    <div class="modal">
+      <h2 id="modal-title">Начало</h2>
+      <p id="modal-sub"></p>
+      <div id="modal-stats" class="statline"></div>
+      <p id="modal-goal"></p>
+      <button id="modal-btn">Продолжить</button>
+    </div>
+  </div>
+
+<script>
+const CV = document.getElementById('cv');
+const ctx = CV.getContext('2d');
+const CELL = 30;
+const COLS = 30, ROWS = 16;
+
+// Время идёт медленнее: 1 игровой день = BASE_TICK мс при скорости x1
+const BASE_TICK = 2600;
+
+const SKILLS = ['farm','craft','mine','fight','trade'];
+const SKILL_NAMES = { farm:'🌾 Земледелие', craft:'⚒ Ремесло', mine:'⛏ Горное', fight:'⚔ Воинское', trade:'💰 Торговое' };
+
+// ---------- Telegram Mini App ----------
+const TG = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+const SAVE_KEY = 'cityBuilderSave';
+
+function haptic(kind){
+  try {
+    if (!TG || !TG.HapticFeedback) return;
+    if (kind==='ok') TG.HapticFeedback.notificationOccurred('success');
+    else if (kind==='err') TG.HapticFeedback.notificationOccurred('error');
+    else if (kind==='warn') TG.HapticFeedback.notificationOccurred('warning');
+    else TG.HapticFeedback.impactOccurred(kind==='heavy' ? 'medium' : 'light');
+  } catch(e){}
+}
+
+function applyTgTheme(){
+  if (!TG || !TG.themeParams) return;
+  const p = TG.themeParams, root = document.documentElement.style;
+  const set = (v, val) => { if (val) root.setProperty(v, '#' + val); };
+  set('--bg', p.bg_color);
+  set('--panel', p.secondary_bg_color || p.bg_color);
+  set('--panel2', p.section_bg_color || p.secondary_bg_color || p.bg_color);
+  set('--text', p.text_color);
+  set('--muted', p.hint_color || p.subtitle_text_color);
+  set('--accent', p.button_color || p.link_color);
+  set('--bad', p.destructive_text_color);
+  document.body.classList.toggle('tg-light', TG.colorScheme === 'light');
+}
+
+function tgUpdateMainButton(){
+  if (!TG || !TG.MainButton) return;
+  try { TG.MainButton.setText((S && S.paused) ? '▶ ПРОДОЛЖИТЬ' : '⏸ ПАУЗА'); } catch(e){}
+}
+
+function tgInit(){
+  if (!TG) return;
+  try {
+    TG.ready();
+    TG.expand();
+    if (TG.disableVerticalSwipes) TG.disableVerticalSwipes();
+    applyTgTheme();
+    if (TG.onEvent) TG.onEvent('themeChanged', applyTgTheme);
+    if (TG.MainButton){
+      TG.MainButton.setParams({ is_visible: true, is_active: true });
+      TG.MainButton.onClick(()=>{
+        if (!S) return;
+        S.paused = !S.paused;
+        syncPauseBtn();
+        haptic('light');
+      });
+      tgUpdateMainButton();
+    }
+    const u = TG.initDataUnsafe && TG.initDataUnsafe.user;
+    if (u){
+      const sub = document.querySelector('.subtitle');
+      if (sub) sub.textContent = (u.first_name ? u.first_name + ', добро пожаловать!' : 'Добро пожаловать!') + ' Управляйте городом.';
+    }
+  } catch(e){}
+}
+
+// ---------- Состояние ----------
+let S = null;
+
+function rndSkill(){ return 1 + Math.floor(Math.random()*3); } // 1..3 на старте
+let CIT_ID = 1;
+function makeCitizen(age){
+  return {
+    id: CIT_ID++,
+    age: (age===undefined? 16+Math.floor(Math.random()*18) : age),
+    sick: 0,
+    skills: { farm:rndSkill(), craft:rndSkill(), mine:rndSkill(), fight:rndSkill(), trade:rndSkill() }
+  };
+}
+
+function newState() {
+  const water = genWater();
+  const deposits = genDeposits(water);
+  const citizens = [];
+  for(let i=0;i<6;i++) citizens.push(makeCitizen());
+  return {
+    day: 1,
+    resources: { food: 80, wood: 60, stone: 30, gold: 20, fish: 0,
+                 ore: 0, wool: 0, cloth: 0, tools: 0 },
+    citizens: citizens,
+    pop: citizens.length, maxPop: 18, happiness: 60,
+    land: Array.from({length: ROWS}, () => Array(COLS).fill(null)),
+    fertility: genFertility(),
+    water: water,
+    fishStock: genFishStock(water),
+    deposits: deposits,
+    roads: Array.from({length: ROWS}, () => Array(COLS).fill(false)),
+    techs: {},
+    god: null,            // выбранный бог
+    faith: 0,             // накопленная вера
+    blessing: null,       // активное благословение
+    blessingDays: 0,
+    ideology: null,       // выбранная идеология
+    mode: 'build',        // build | demolish
+    gems: 0,              // премиальная валюта (самоцветы)
+    premium: false,       // премиум-мэр (+10% ко всему)
+    boosts: {},           // активные ускорения
+    daily: null,          // дата последнего бонуса дня
+    ach: {},              // полученные достижения
+    theme: 'default',     // купленная тема оформления
+    xp: 0, level: 1,      // опыт и уровень города
+    qDate: null, quests: [], qStats: {},   // ежедневные задания
+    streak: 0, lastVisit: null,            // серия входов
+    themes: { default:true },              // купленные темы
+    badge: false,                          // бейдж мецената
+    prestige: 0,                           // число «новых эпох»
+    difficulty: 'normal',                  // calm | normal | hard
+    patron: false,                         // покровитель (+25% производства)
+    shieldDays: 0,                         // защита от набегов
+    doublequest: false,                    // двойные награды заданий
+    unpaid: 0,                             // дней без оплаты содержания
+    over: false, paused: false, speed: 1, msg: [],
+  };
+}
+
+// Плодородные клетки: несколько случайных "пятен" плодородия
+function genFertility() {
+  const f = Array.from({length: ROWS}, () => Array(COLS).fill(90));
+  const blobs = 5 + Math.floor(Math.random()*3);
+  for (let i=0;i<blobs;i++){
+    const cr = Math.floor(Math.random()*ROWS), cc = Math.floor(Math.random()*COLS);
+    const rad = 2 + Math.random()*3;
+    const peak = 130 + Math.random()*70;
+    for (let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+      const d = Math.hypot(r-cr, c-cc);
+      f[r][c] = Math.min(200, f[r][c] + peak * Math.max(0, 1-d/rad));
+    }
+  }
+  return f;
+}
+
+// Водная карта: 0 = суша, 1 = пресное озеро, 2 = солёное море
+// Солёное море — узкая полоса у правого края, пресные озёра — несколько блобов
+function genWater() {
+  const w = Array.from({length: ROWS}, () => Array(COLS).fill(0));
+  // солёное море: правые 3 колонки + немного заливов
+  const seaWidth = 3;
+  for(let r=0;r<ROWS;r++){
+    for(let c=Math.max(0,COLS-seaWidth);c<COLS;c++){
+      w[r][c] = 2;
+    }
+  }
+  // пара случайных заливов моря вглубь
+  const inlets = 2;
+  for(let i=0;i<inlets;i++){
+    const r = Math.floor(Math.random()*ROWS);
+    let c = COLS - seaWidth - 1 - Math.floor(Math.random()*3);
+    w[r][c] = 2;
+    if (Math.random()<0.6 && c>0) w[Math.min(ROWS-1,r+ (Math.random()<0.5?-1:1))][c-1]=2;
+  }
+  // пресные озёра: 3-5 блобов в водной зоне
+  const lakes = 3 + Math.floor(Math.random()*3);
+  for(let i=0;i<lakes;i++){
+    const cr = 2 + Math.floor(Math.random()*(ROWS-4)), cc = 2 + Math.floor(Math.random()*(COLS-8));
+    const rad = 1.5 + Math.random()*2.2;
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+      if (Math.hypot(r-cr, c-cc) < rad && w[r][c]===0) w[r][c]=1;
+    }
+  }
+  return w;
+}
+
+// Запас рыбы в каждом водном блобе: значение на клетку
+function genFishStock(water) {
+  const fs = Array.from({length: ROWS}, () => Array(COLS).fill(0));
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    const t = water[r][c];
+    if (t===1) fs[r][c] = 40 + Math.floor(Math.random()*80);   // озёра
+    else if (t===2) fs[r][c] = 20 + Math.floor(Math.random()*40); // море меньше
+  }
+  return fs;
+}
+
+// Месторождения: разные типы руд и ресурсов
+// forest лес, rock камень, copper медь, iron железо, silver серебро, gold золото
+function genDeposits(water) {
+  const d = Array.from({length: ROWS}, () => Array(COLS).fill(null));
+  const groups = [
+    { type:'forest', blobs:4, rad:1.5, cap:220 },
+    { type:'rock',   blobs:3, rad:1.2, cap:180 },
+    { type:'copper', blobs:2, rad:1.0, cap:200 },
+    { type:'iron',   blobs:2, rad:1.0, cap:240 },
+    { type:'silver', blobs:1, rad:0.9, cap:140 },
+    { type:'gold',   blobs:1, rad:0.8, cap:120 },
+  ];
+  for (const g of groups){
+    for(let i=0;i<g.blobs;i++){
+      const cr=Math.floor(Math.random()*ROWS), cc=Math.floor(Math.random()*COLS);
+      const rad=g.rad + Math.random()*1.5;
+      for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+        if (water[r][c]!==0) continue;
+        if (Math.hypot(r-cr,c-cc) < rad && !d[r][c]){
+          d[r][c] = { type:g.type, max:g.cap, left: g.cap + Math.floor(Math.random()*g.cap*0.5) };
+        }
+      }
+    }
+  }
+  return d;
+}
+
+// Ресурсы: иконки и названия
+const RES_META = {
+  food:{i:'🌾',n:'Еда'}, wood:{i:'🪵',n:'Дерево'}, stone:{i:'🪨',n:'Камень'},
+  gold:{i:'🪙',n:'Золото'}, fish:{i:'🐟',n:'Рыба'}, ore:{i:'⛏',n:'Руда'},
+  wool:{i:'🧶',n:'Шерсть'}, cloth:{i:'🧵',n:'Ткань'}, tools:{i:'🔧',n:'Инструменты'},
+};
+
+// Категории построек
+const CATS = { food:'🌾 Еда', res:'⛏ Ресурсы', craft:'⚒ Ремёсла', city:'🏠 Город', def:'🛡 Оборона', infra:'🧱 Инфраструктура' };
+
+const BUILDINGS = {
+  // --- Еда и скотоводство ---
+  farm:     { name:'Ферма', cat:'food', skill:'farm', cost:{wood:10}, desc:'+8 еды/день. Лучше на плодородной земле', info:'🎫 1 · земледелие', workers:1 },
+  pasture:  { name:'Пастбище', cat:'food', skill:'farm', cost:{wood:15,stone:5}, desc:'Скотоводство: +6 еды и +2 шерсти/день', info:'🎫 1 · нужно «Скотоводство»', workers:1, unlock:'husbandry', lvl:2 },
+  hunter:   { name:'Домик охотника', cat:'food', skill:'fight', cost:{food:10,wood:15}, desc:'+4 еды, отгоняет диких зверей', info:'🎫 1 · охота', workers:1 },
+  fishboat: { name:'Рыбацкая лодка', cat:'food', skill:'farm', cost:{wood:15,stone:5}, desc:'Ловит рыбу. Ставится на воду', info:'🎫 1 · рыбалка', workers:1, onWater:true, water:'both' },
+
+  // --- Ресурсы ---
+  lumber:   { name:'Лесопилка', cat:'res', skill:'mine', cost:{food:10,stone:5}, desc:'+6 дерева/день', info:'🎫 1 · лесозаготовка', workers:1 },
+  stone:    { name:'Шахта', cat:'res', skill:'mine', cost:{food:10,wood:10}, desc:'+4 камня/день. На скале x1.8', info:'🎫 1 · камнедобыча', workers:1 },
+  mine:     { name:'Рудник', cat:'res', skill:'mine', cost:{food:15,wood:20,stone:15}, desc:'Добывает руду из жилы: медь, железо, серебро, золото', info:'🎫 1 · горное дело', workers:1, lvl:2 },
+  goldmine: { name:'Золотая шахта', cat:'res', skill:'mine', cost:{food:15,wood:20,stone:15}, desc:'+2 золота/день. На золотой жиле x2', info:'🎫 1 · золотодобыча', workers:1 },
+
+  // --- Ремёсла ---
+  smithy:   { name:'Кузница', cat:'craft', skill:'craft', cost:{wood:25,stone:20,gold:10}, desc:'Переплавляет руду в инструменты', info:'🎫 1 · нужно «Кузнечное дело»', workers:1, unlock:'smithing', lvl:3 },
+  weaver:   { name:'Ткацкая мастерская', cat:'craft', skill:'craft', cost:{wood:25,stone:5,gold:5}, desc:'Ткёт ткань из шерсти', info:'🎫 1 · нужно «Ткачество»', workers:1, unlock:'weaving', lvl:3 },
+  brewery:  { name:'Пивоварня', cat:'craft', skill:'craft', cost:{wood:20,stone:10,gold:5}, desc:'Эль: +золото и +настроение', info:'🎫 1 · нужно «Пивоварение»', workers:1, unlock:'brewing', lvl:4 },
+  market:   { name:'Рынок', cat:'craft', skill:'trade', cost:{food:20,wood:15,stone:10,gold:20}, desc:'+3 золота/день', info:'🎫 1 · торговля', workers:1 },
+  merchant: { name:'Торговый корабль', cat:'craft', skill:'trade', cost:{wood:30,stone:20,gold:30}, desc:'+6 рыбы и +2 золота/день. Только на море', info:'🎫 1 · морская торговля', workers:1, onWater:true, water:'sea' },
+
+  // --- Город ---
+  house:    { name:'Дом', cat:'city', cost:{wood:20,stone:10}, desc:'+3 жилья', info:'Жильё: +3' },
+  shack:    { name:'Лачуга', cat:'city', cost:{wood:8}, desc:'+2 жилья, счастье -5', info:'Жильё: +2' },
+  park:     { name:'Парк', cat:'city', cost:{wood:15,stone:5,gold:5}, desc:'+10 настроения', info:'Счастье: +10' },
+  healer:   { name:'Лечебница', cat:'city', skill:'craft', cost:{food:15,wood:25,stone:15,gold:15}, desc:'Снижает болезни, лечит больных', info:'🎫 1 · лекарь', workers:1 },
+  temple:   { name:'Храм', cat:'city', skill:'craft', cost:{stone:40,wood:30,gold:30}, desc:'Даёт веру. Нужен жрец', info:'🎫 1 · нужно «Богословие»', workers:1, unlock:'theology', faith:2, lvl:4 },
+  barn:     { name:'Амбар', cat:'city', cost:{food:10,wood:25,stone:10}, desc:'+100 лимита еды', info:'Хранение еды' },
+  store:    { name:'Склад', cat:'city', cost:{food:10,wood:15,stone:20}, desc:'+80 лимита ресурсов', info:'Хранение' },
+
+  // --- Инфраструктура ---
+  road:     { name:'Дорога', cat:'infra', cost:{stone:2}, desc:'Ускоряет путь рабочих к домам', info:'Скорость доставки' },
+
+  // --- Оборона ---
+  palisade: { name:'Частокол', cat:'def', cost:{wood:12}, desc:'Деревянная защита', info:'Оборона: 4' },
+  wall:     { name:'Каменная стена', cat:'def', cost:{wood:10,stone:25}, desc:'Прочная стена', info:'Оборона: 12' },
+  moat:     { name:'Ров', cat:'def', cost:{stone:5}, desc:'Замедляет нападающих', info:'Оборона: 3' },
+  guard:    { name:'Дозорная вышка', cat:'def', skill:'fight', cost:{wood:20,stone:10,gold:5}, desc:'Страж против зверей и грабителей', info:'🎫 1 · стража', workers:1, soldier:true },
+  tower:    { name:'Стрелковая башня', cat:'def', skill:'fight', cost:{wood:30,stone:30,gold:15}, desc:'Лучники бьют нападающих', info:'🎫 1 · оборона 8', workers:1, soldier:true, def:8, lvl:5 },
+};
+const EMO = {farm:'🌾',pasture:'🐄',hunter:'🏹',fishboat:'🛶',lumber:'🪵',stone:'🪨',mine:'⛏',goldmine:'💎',
+  smithy:'🔥',weaver:'🧵',brewery:'🍺',market:'🏪',merchant:'⛵',house:'🏠',shack:'🛖',park:'🌳',healer:'💉',
+  temple:'⛪',barn:'🏚',store:'🏗',road:'🛣',palisade:'🚧',wall:'🧱',moat:'🕳',guard:'🗼',tower:'🏰'};
+
+// Здания, требующие рабочих:
+function needsWorkers(b){ return !!(b && b.workers); }
+
+// ---------- Технологии (продвинутое дерево) ----------
+const TECHS = {
+  // базовые
+  irrigation:  { name:'Орошение',        req:null,          cost:30,  tier:1, desc:'Фермы +30% урожая' },
+  metallurgy:  { name:'Металлургия',     req:null,          cost:35,  tier:1, desc:'Шахты +50% камня, рудник +25%' },
+  carpentry:   { name:'Плотницкое дело', req:null,          cost:25,  tier:1, desc:'Лесопилки +40% дерева' },
+  husbandry:   { name:'Скотоводство',    req:null,          cost:40,  tier:1, desc:'Открывает пастбища; скот +25%' },
+  weaving:     { name:'Ткачество',       req:null,          cost:45,  tier:1, desc:'Открывает ткацкую; ткань +50%' },
+  brewing:     { name:'Пивоварение',     req:null,          cost:40,  tier:1, desc:'Открывает пивоварню; эль выгоднее' },
+  roads:       { name:'Дорожное дело',   req:null,          cost:35,  tier:1, desc:'Дороги дешевле, скорость +25%' },
+  // второй уровень
+  rotation:    { name:'Севооборот',      req:'irrigation',  cost:60,  tier:2, desc:'Фермы ещё +40%' },
+  smithing:    { name:'Кузнечное дело',  req:'metallurgy',  cost:65,  tier:2, desc:'Открывает кузницу; инструменты' },
+  construction:{ name:'Строительство',   req:'carpentry',   cost:60,  tier:2, desc:'Лимиты хранения +50%' },
+  trade:       { name:'Торговля',        req:'carpentry',   cost:55,  tier:2, desc:'Золото рынка x2, лимит золота +50%' },
+  theology:    { name:'Богословие',      req:null,          cost:70,  tier:2, desc:'Открывает храм; вера накапливается' },
+  metallurgy2: { name:'Литьё стали',     req:'metallurgy',  cost:95,  tier:3, desc:'Рудник +50%, шахты +25%' },
+  guilds:      { name:'Гильдии',         req:'construction',cost:90,  tier:3, desc:'Рост населения +50%, ремёсла +15%' },
+  greenhouse:  { name:'Теплицы',         req:'rotation',    cost:90,  tier:3, desc:'Зимний штраф ферм смягчён' },
+  banking:     { name:'Банковское дело', req:'trade',       cost:120, tier:4, desc:'+100 лимита золота, +5 золота/день' },
+  logistics:   { name:'Логистика',       req:'roads',       cost:85,  tier:3, desc:'Скорость доставки +40%' },
+  engineering: { name:'Инженерия',       req:'metallurgy2', cost:140, tier:4, desc:'Стены и башни +40% обороны' },
+  philosophy:  { name:'Философия',       req:'theology',    cost:110, tier:3, desc:'Навыки жителей растут быстрее' },
+  medicine:    { name:'Медицина',        req:'theology',    cost:100, tier:3, desc:'Болезни вдвое реже, лекари сильнее' },
+  education:   { name:'Образование',     req:'philosophy',  cost:150, tier:4, desc:'Все навыки +1 при рождении' },
+};
+
+// ---------- Боги ----------
+const GODS = {
+  sun:    { name:'Даждьбог', emo:'☀️', domain:'Земледелие', desc:'+20% еды, благословение урожая', buff:{food:1.2} },
+  thunder:{ name:'Перун',    emo:'⚡', domain:'Война',      desc:'+20% обороны, благословение силы', buff:{def:1.2} },
+  hearth: { name:'Мокошь',   emo:'🧵', domain:'Ремёсла',    desc:'+15% ремёсел и тканей', buff:{craft:1.15} },
+  trade:  { name:'Велес',    emo:'🪙', domain:'Торговля',   desc:'+15% золота, благословение богатства', buff:{gold:1.15} },
+};
+const BLESSINGS = {
+  harvest: { name:'Урожай',   emo:'🌾', cost:40, days:8, desc:'+60% еды на 8 дней' },
+  strength:{ name:'Сила',     emo:'⚡', cost:40, days:8, desc:'+60% обороны на 8 дней' },
+  wealth:  { name:'Богатство',emo:'🪙', cost:50, days:8, desc:'+50% золота на 8 дней' },
+  health:  { name:'Здравие',  emo:'💚', cost:35, days:8, desc:'Болезни почти исчезают' },
+};
+
+// ---------- Идеологии ----------
+const IDEOLOGIES = {
+  tradition: { name:'Традиции', emo:'🏺', desc:'+15% еды, +5 счастья; −15% золота', buff:{food:1.15, happy:5, gold:0.85} },
+  progress:  { name:'Прогресс', emo:'⚙️', desc:'+20% ремёсел и дерева; −5 счастья', buff:{craft:1.2, wood:1.2, happy:-5} },
+  militarism:{ name:'Милитаризм', emo:'⚔️', desc:'+30% обороны, +10% камня; −10% еды', buff:{def:1.3, stone:1.1, food:0.9} },
+  trade:     { name:'Торговая республика', emo:'⚖️', desc:'+30% золота, +10% счастья; −10% обороны', buff:{gold:1.3, happy:10, def:0.9} },
+};
+
+// ---------- Сезоны ----------
+const SEASONS = [
+  { name:'Весна', emo:'🌱', du:4, mult:{food:1.0, wood:1.0, stone:1.0} },
+  { name:'Лето',  emo:'☀️', du:4, mult:{food:1.5, wood:1.2, stone:1.0} },
+  { name:'Осень', emo:'🍂', du:4, mult:{food:1.2, wood:1.5, stone:1.0} },
+  { name:'Зима',  emo:'❄️', du:4, mult:{food:0.1, wood:0.3, stone:0.8} },
+];
+function currentSeason(){
+  const idx = Math.floor((S.day-1) / 4) % 4;
+  return SEASONS[idx];
+}
+function nextSeason(){
+  const idx = (Math.floor((S.day-1) / 4) + 1) % 4;
+  return SEASONS[idx];
+}
+
+function hasTech(t){ return !!S.techs[t]; }
+function techFoodBonus(){
+  let m = 1;
+  if (hasTech('irrigation')) m *= 1.3;
+  if (hasTech('rotation')) m *= 1.4;
+  if (hasTech('greenhouse')) m *= 1.15;
+  return m;
+}
+function techWoodBonus(){ return hasTech('carpentry') ? 1.4 : 1; }
+function techStoneBonus(){
+  let m = hasTech('metallurgy') ? 1.5 : 1;
+  if (hasTech('metallurgy2')) m *= 1.25;
+  return m;
+}
+function techOreBonus(){
+  let m = hasTech('metallurgy') ? 1.25 : 1;
+  if (hasTech('metallurgy2')) m *= 1.5;
+  return m;
+}
+function techCraftBonus(){ return hasTech('guilds') ? 1.15 : 1; }
+function storageMult(){ return hasTech('construction') ? 1.5 : 1; }
+function goldMult(){ return hasTech('trade') ? 2 : 1; }
+
+// ---- Религия / идеология / баффы ----
+function godBuff(){ return (S.god && GODS[S.god]) ? GODS[S.god].buff : {}; }
+function ideologyBuff(){ return (S.ideology && IDEOLOGIES[S.ideology]) ? IDEOLOGIES[S.ideology].buff : {}; }
+function blessActive(name){
+  return S.blessing===name && S.blessingDays>0;
+}
+// Итоговый множитель по категории: tech*food, ideology, god, blessing
+function mult(kind){
+  let m = 1;
+  const g = godBuff(), ideo = ideologyBuff();
+  if (kind==='food'){
+    m *= techFoodBonus();
+    if (g.food) m *= g.food;
+    if (ideo.food) m *= ideo.food;
+    if (blessActive('harvest')) m *= 1.6;
+  } else if (kind==='wood'){
+    m *= techWoodBonus();
+    if (ideo.wood) m *= ideo.wood;
+  } else if (kind==='stone'){
+    m *= techStoneBonus();
+    if (ideo.stone) m *= ideo.stone;
+  } else if (kind==='ore'){
+    m *= techOreBonus();
+  } else if (kind==='gold'){
+    if (g.gold) m *= g.gold;
+    if (ideo.gold) m *= ideo.gold;
+    if (blessActive('wealth')) m *= 1.5;
+  } else if (kind==='craft'){
+    m *= techCraftBonus();
+    if (g.craft) m *= g.craft;
+    if (ideo.craft) m *= ideo.craft;
+  } else if (kind==='def'){
+    if (g.def) m *= g.def;
+    if (ideo.def) m *= ideo.def;
+    if (hasTech('engineering')) m *= 1.4;
+    if (blessActive('strength')) m *= 1.6;
+  }
+  return m;
+}
+function ideologyHappy(){ const b=ideologyBuff(); return b.happy||0; }
+
+// Лимиты хранения: базовые + здания * бонус технологий
+function limits(){
+  let barns=0, stores=0;
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    const b=S.land[r][c]; if(!b) continue;
+    if (b.type==='barn') barns++;
+    if (b.type==='store') stores++;
+  }
+  const sm = storageMult();
+  let gold = 50 * (hasTech('trade')?1.5:1) + (hasTech('banking')?100:0);
+  return {
+    food: (150 + barns*100) * sm,
+    wood: (120 + stores*80) * sm,
+    stone:(120 + stores*80) * sm,
+    gold: gold,
+    fish: (60 + stores*40) * sm,
+    ore:  (60 + stores*50) * sm,
+    wool: (60 + stores*40) * sm,
+    cloth:(50 + stores*40) * sm,
+    tools:(40 + stores*30) * sm,
+  };
+}
+
+function init() {
+  S = newState();
+  // ставим стартовые постройки на первую свободную сушу (карта случайна)
+  const starts = ['farm','farm','lumber','house'];
+  let placed = 0;
+  for (const type of starts){
+    let done = false;
+    for (let r=2; r<ROWS && !done; r++){
+      for (let c=2; c<COLS-4 && !done; c++){
+        if (S.water[r][c]!==0) continue;
+        if (S.land[r][c] || S.roads[r][c]) continue;
+        if (placeBuilding(type, r, c)){ done = true; placed++; }
+      }
+    }
+  }
+  computeTravel();
+  renderBoard(); updateUI();
+  addLog('🏡 Вы — мэр поселения. Стройте город и доживите до процветания!');
+}
+
+function placeBuilding(type, r, c) {
+  const b = BUILDINGS[type];
+  if (S.land[r][c] || (type!=='road' && S.roads[r][c])) return false;
+  const wet = S.water[r][c];
+  if (b.onWater) {
+    // только на воде нужного типа
+    if (wet===0) return false;
+    if (b.water==='sea' && wet!==2) return false;
+    if (b.water==='lake' && wet!==1) return false;
+  } else {
+    // сухопутные постройки нельзя на воду
+    if (wet!==0) return false;
+  }
+  if (!pay(b.cost)) return false;
+  if (type==='road'){ S.roads[r][c]=true; return true; }
+  const dep = S.deposits[r][c];
+  S.land[r][c] = { type, level: 1, fert: S.fertility[r][c], water: wet,
+    dep: dep ? { type: dep.type, max: dep.max, left: dep.left } : null,
+    workers: 0,          // сколько рабочих занято сейчас
+    need: b.workers||0   // сколько нужно
+  };
+  return true;
+}
+
+function pay(cost) {
+  for (let k in cost) if (S.resources[k] < cost[k]) return false;
+  for (let k in cost) { if (cost[k]>0) S.resources[k] -= cost[k]; }
+  return true;
+}
+
+// Снос: возврат половины стоимости
+function refundHalf(cost){
+  const lim = limits();
+  for (let k in cost){
+    const back = Math.floor(cost[k]*0.5);
+    if (back>0){
+      S.resources[k] = Math.min(lim[k]!==undefined?lim[k]:Infinity, (S.resources[k]||0) + back);
+    }
+  }
+}
+function demolishAt(r,c){
+  if (!S) return;
+  if (r<0||r>=ROWS||c<0||c>=COLS) return;
+  if (S.roads[r][c]){
+    S.roads[r][c]=false;
+    refundHalf(BUILDINGS.road.cost);
+    addLog('🔨 Дорога снесена (+часть камня)','evt');
+    renderBoard(); updateUI(); return;
+  }
+  const b = S.land[r][c];
+  if (!b){ addLog('Здесь нечего сносить','bad'); return; }
+  const info = BUILDINGS[b.type];
+  S.land[r][c]=null;                      // постройка удалена, месторождение остаётся
+  refundHalf(info.cost);
+  syncPop();
+  addLog(`🔨 Снесено: ${info.name} (+50% ресурсов)`,'evt');
+  haptic('medium');
+  renderBoard(); updateUI();
+}
+
+// ---------- Цикл ----------
+let intervalId=null;
+function startLoop(ms){ if(intervalId) clearInterval(intervalId); intervalId=setInterval(tick,ms); }
+
+// Истощение месторождения: извлекаем и медленно истощаем
+function depleteDep(b, amt){
+  if(!b.dep) return;
+  b.dep.left = Math.max(0, b.dep.left - (amt||5));
+  if (b.dep.left <= 0){ b.dep = null; }
+}
+
+// Бонус добычи от месторождения под постройкой (множитель, если совпадает)
+function depBonus(b){
+  if (!b.dep) return 1;
+  const m = {
+    forest:{lumber:2.0},
+    rock:{stone:1.8},
+    copper:{mine:1.5},
+    iron:{mine:1.5},
+    silver:{mine:1.5, goldmine:1.3},
+    gold:{gold:2.0, mine:1.5},
+  }[b.dep.type];
+  if (!m || m[b.type]===undefined) return 1;
+  return m[b.type];
+}
+function tick(){
+  if (!S||S.paused||S.over) return;
+  const before = currentSeason();
+  S.day++;
+  const after = currentSeason();
+  if (after!==before) addLog(`${after.emo} Наступил сезон: ${after.name}!`, 'evt');
+  computeTravel();       // расстояния от домов (дороги ускоряют)
+  assignWorkers();       // распределяем рабочих по зданиям
+  S.faithGain = 0;
+  S.beerDays = 0;
+  produce(); consume(); computePopulation(); agingAndDeath(); sickness();
+  questEvent('food', (S.lastProd && S.lastProd.food) || 0);
+  ensureDaily();
+  growSkills();
+  faithAndBlessings();
+  randomEvent();
+  maybeRandomChoice();
+  tickBoosts();
+  difficultyTick();
+  checkAchievements();
+  maybeAutoSave();
+  renderBoard(); updateUI(); checkEnd();
+}
+
+// Вера и благословения
+function faithAndBlessings(){
+  // храмы дают веру
+  S.faith = (S.faith||0) + (S.faithGain||0);
+  // активное благословение тикает
+  if (S.blessing && S.blessingDays>0){
+    S.blessingDays--;
+    if (S.blessingDays===0){
+      addLog(`✨ Благословение «${BLESSINGS[S.blessing].name}» закончилось.`,'evt');
+      S.blessing=null;
+    }
+  }
+}
+
+// Сколько взрослых жителей доступно для работы (не дети, но больные могут быть слабее)
+function adults(){
+  return S.citizens.filter(c=>c.age>=10).length;
+}
+// Функция здоровья прожитых людей
+function healthyCount(){ return S.citizens.filter(c=>!c.sick).length; }
+
+// Распределение рабочих: подбираем жителя с лучшим навыком под здание
+function assignWorkers(){
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    const bb=S.land[r][c]; if(!bb) continue;
+    bb.workers = 0; bb.wskill = 0; bb.workerId = null;
+  }
+  const pool = S.citizens.filter(c=>c.age>=10 && !c.sick);
+  const used = new Set();
+  const order = ['farm','pasture','fishboat','hunter','market','temple','healer',
+                 'mine','goldmine','stone','lumber','smithy','weaver','brewery','merchant','guard','tower'];
+  for (const type of order){
+    const skill = BUILDINGS[type] ? BUILDINGS[type].skill : null;
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+      const bb=S.land[r][c]; if(!bb||bb.type!==type) continue;
+      // совместимость со старыми сейвами: поле need могло не сохраниться
+      if (bb.need===undefined) bb.need = BUILDINGS[bb.type] ? (BUILDINGS[bb.type].workers||0) : 0;
+      if (!bb.need) continue;
+      let best=null, bestVal=-1;
+      for (const cit of pool){
+        if (used.has(cit.id)) continue;
+        const v = skill ? (cit.skills[skill]||1) : 2;
+        if (v>bestVal){ bestVal=v; best=cit; }
+      }
+      if (!best) continue;                 // нет свободных людей — здание простаивает
+      used.add(best.id);
+      bb.workers = 1;
+      bb.wskill = bestVal;
+      bb.workerId = best.id;
+    }
+  }
+  S.freeWorkers = pool.length - used.size;
+}
+
+// Навыки растут у работающих жителей
+function growSkills(){
+  const chance = hasTech('philosophy') ? 0.10 : 0.05;
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    const bb=S.land[r][c];
+    if (!bb || !bb.workerId) continue;
+    const info=BUILDINGS[bb.type]; if(!info||!info.skill) continue;
+    const cit = S.citizens.find(x=>x.id===bb.workerId);
+    if (!cit) continue;
+    if ((cit.skills[info.skill]||1) < 5 && Math.random()<chance){
+      cit.skills[info.skill]++;
+    }
+  }
+}
+
+// Скорость перемещения: дистанция от ближайшего дома по дорогам (дороги дешевле)
+function computeTravel(){
+  const INF = 1e9;
+  const dist = Array.from({length:ROWS}, () => Array(COLS).fill(INF));
+  const q = [];
+  const roadW = hasTech('logistics') ? 0.7 : (hasTech('roads') ? 0.85 : 1);
+  const plainW = hasTech('logistics') ? 1.6 : (hasTech('roads') ? 1.8 : 2.2);
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    const b=S.land[r][c];
+    if (b && (b.type==='house'||b.type==='shack')){ dist[r][c]=0; q.push([r,c]); }
+  }
+  // Дейкстра на маленькой сетке
+  let head=0;
+  while(head<q.length){
+    // выбираем минимум (сетка мала — линейный поиск допустим)
+    let bi=head;
+    for(let i=head;i<q.length;i++) if (dist[q[i][0]][q[i][1]] < dist[q[bi][0]][q[bi][1]]) bi=i;
+    [q[head],q[bi]]=[q[bi],q[head]];
+    const [r,c]=q[head++];
+    const d0=dist[r][c];
+    for (const [dr,dc] of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const nr=r+dr, nc=c+dc;
+      if (nr<0||nr>=ROWS||nc<0||nc>=COLS) continue;
+      if (S.water[nr][nc]!==0) continue;          // вода непроходима
+      const w = S.roads[nr][nc] ? roadW : plainW;
+      const nd = d0 + w;
+      if (nd < dist[nr][nc]-1e-9){ dist[nr][nc]=nd; q.push([nr,nc]); }
+    }
+  }
+  S.travel = dist;
+  // Сохраняем коэффициент доступности у каждого рабочего здания
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    const b=S.land[r][c]; if(!b) continue;
+    const d = dist[r][c];
+    if (d>=INF){ b.travel = 0.5; continue; }
+    // 0..3 — отлично, дальше падает до 0.45
+    b.travel = Math.max(0.45, Math.min(1, 1 - Math.max(0, d-3)*0.035));
+  }
+}
+
+function countType(t){
+  let n=0; for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){ if(S.land[r][c]&&S.land[r][c].type===t) n++; }
+  return n;
+}
+
+function produce(){
+  const sea = currentSeason();
+  let food=0, wood=0, stone=0, gold=0, fish=0, ore=0, wool=0, cloth=0, tools=0;
+  for (let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    const b=S.land[r][c]; if(!b) continue;
+    const sm = sea.mult;
+    // зданиям нужны работники
+    if (needsWorkersOrig(b) && b.workers<=0) continue;
+    // навык и доступность (дороги) дают 0.45..1.4
+    const skill = b.wskill ? (0.85 + b.wskill*0.08) : 1;   // 1..5 -> 0.93..1.25
+    const access = b.travel!==undefined ? b.travel : 1;
+    const eff = skill*access*(1 + (((b.level||1)-1)*0.25));
+    switch(b.type){
+      case 'farm':{
+        const fMult = 0.5 + (b.fert||90)/400;                    // плодородность
+        let smult = sm.food;
+        if (sea.name==='Зима' && hasTech('greenhouse')) smult = 0.55; // теплицы смягчают зиму
+        food += 8 * fMult * smult * mult('food') * eff;
+        break;
+      }
+      case 'pasture':{
+        food += 6 * sm.food * mult('food') * eff * (hasTech('husbandry')?1.25:1);
+        wool += 2 * eff * (hasTech('husbandry')?1.25:1);
+        break;
+      }
+      case 'hunter':{
+        food += 4 * sm.food * mult('food') * eff;
+        break;
+      }
+      case 'lumber':{
+        const db = depBonus(b);
+        wood += 6 * sm.wood * mult('wood') * db * eff;
+        if (db>1) depleteDep(b, 6*db);
+        break;
+      }
+      case 'stone':{
+        const db = depBonus(b);
+        stone += 4 * sm.stone * mult('stone') * db * eff;
+        if (db>1) depleteDep(b, 6*db);
+        break;
+      }
+      case 'mine':{
+        const t = b.dep ? b.dep.type : null;
+        const db = b.dep ? 1.5 : 1;
+        if (t==='copper')      ore += 4 * mult('ore') * db * eff;
+        else if (t==='iron')   ore += 5 * mult('ore') * db * eff;
+        else if (t==='silver'){ ore += 2*mult('ore')*eff; gold += 1.5*mult('gold')*db*eff; }
+        else if (t==='gold'){  ore += 1*mult('ore')*eff; gold += 2.5*mult('gold')*db*eff; }
+        else                   ore += 1.5 * mult('ore') * eff; // бедная порода
+        if (b.dep) depleteDep(b, 5*db);
+        break;
+      }
+      case 'goldmine':{
+        const db = depBonus(b);
+        gold += 2 * mult('gold') * db * eff;
+        if (b.dep && b.dep.type==='gold') { gold += 1.5*mult('gold')*eff; depleteDep(b, 4); }
+        break;
+      }
+      case 'smithy':{
+        // руда -> инструменты
+        const need = 2;
+        if (S.resources.ore >= need){
+          S.resources.ore -= need;
+          tools += 1.2 * mult('craft') * eff * (hasTech('smithing')?1.25:1);
+        }
+        break;
+      }
+      case 'weaver':{
+        if (S.resources.wool >= 2){
+          S.resources.wool -= 2;
+          cloth += 1.2 * mult('craft') * eff * (hasTech('weaving')?1.5:1);
+        }
+        break;
+      }
+      case 'brewery':{
+        if (S.resources.food >= 3){
+          S.resources.food -= 3;
+          gold += 4 * mult('gold') * eff * (hasTech('brewing')?1.3:1);
+          S.beerDays = (S.beerDays||0) + 1;
+        }
+        break;
+      }
+      case 'market': gold += (3*goldMult() + (hasTech('banking')?5:0)) * mult('gold') * eff; break;
+      case 'temple': S.faithGain = (S.faithGain||0) + 2*eff; break;
+      case 'healer': break;
+      case 'guard': case 'tower': break;
+      case 'fishboat':{
+        const shift = b.water===2 ? 1.0 : 1.5;
+        fish += 3 * shift * eff;
+        S.fishStock[r][c] = Math.max(0, (S.fishStock[r][c]||0) - 3);
+        break;
+      }
+      case 'merchant':{
+        fish += 6 * eff;
+        gold += 2 * mult('gold') * eff;
+        S.fishStock[r][c] = Math.max(0, (S.fishStock[r][c]||0) - 6);
+        break;
+      }
+    }
+  }
+  regrowFish();
+  const lim = limits();
+  S.resources.food  = Math.min(lim.food,  S.resources.food  + food);
+  S.resources.wood  = Math.min(lim.wood,  S.resources.wood  + wood);
+  S.resources.stone = Math.min(lim.stone, S.resources.stone + stone);
+  S.resources.gold  = Math.min(lim.gold,  S.resources.gold  + gold);
+  S.resources.fish  = Math.min(lim.fish,  S.resources.fish  + fish);
+  S.resources.ore   = Math.min(lim.ore,   S.resources.ore   + ore);
+  S.resources.wool  = Math.min(lim.wool,  S.resources.wool  + wool);
+  S.resources.cloth = Math.min(lim.cloth, S.resources.cloth + cloth);
+  S.resources.tools = Math.min(lim.tools, S.resources.tools + tools);
+  S.lastProd = {food:Math.round(food), wood:Math.round(wood), stone:Math.round(stone),
+                gold:Math.round(gold), fish:Math.round(fish), ore:Math.round(ore),
+                wool:Math.round(wool), cloth:Math.round(cloth), tools:Math.round(tools)};
+  // опасность от зверей
+  S.wildDanger = wildDangerLevel();
+}
+// помощник для быстрой проверки (без создания новых полей)
+function needsWorkersOrig(b){ return BUILDINGS[b.type] && BUILDINGS[b.type].workers>0; }
+
+// Рыба медленно восстанавливается (размножение)
+function regrowFish(){
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    if (S.water[r][c]!==0){
+      const cap = S.water[r][c]===1 ? 120 : 60;
+      if (S.fishStock[r][c] < cap) S.fishStock[r][c] = Math.min(cap, (S.fishStock[r][c]||0) + 1);
+    }
+  }
+}
+
+function consume(){
+  const need = S.citizens.length * 0.5 * diff().foodUse;
+  if (need>0){
+    let pool = S.resources.food + S.resources.fish;
+    if (pool>=need){
+      const takeFood = Math.min(S.resources.food, need);
+      S.resources.food -= takeFood;
+      const takeFish = need - takeFood;
+      S.resources.fish -= takeFish;
+      S.hungryDays=0;
+    }
+    else {
+      S.resources.food=0; S.resources.fish=0;
+      S.hungryDays=(S.hungryDays||0)+1;
+      S.happiness-=8;
+      if (S.hungryDays>=5){
+        // голод убивает самых слабых (старых и больных)
+        const victims = S.citizens.filter(c=>c.age>=55||c.sick);
+        let died=0;
+        while (victims.length>0 && died< Math.ceil(S.citizens.length*0.1)){
+          const i = S.citizens.indexOf(victims.shift());
+          if (i>=0){ S.citizens.splice(i,1); died++; }
+        }
+        if (died===0 && S.citizens.length>0){ S.citizens.pop(); died=1; }
+        syncPop();
+        addLog(`⚠️ Голод! Умерло ${died} жителей.`,'bad');
+        S.hungryDays=0;
+      }
+    }
+  }
+}
+
+// Синхронизация поля pop с массивом жителей
+function syncPop(){ S.pop = S.citizens.length; }
+
+function computePopulation(){
+  let cap=0, parks=0, huts=0;
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    const b=S.land[r][c]; if(!b) continue;
+    if (b.type==='house') cap+=3;
+    if (b.type==='shack'){ cap+=2; huts++; }
+    if (b.type==='park') parks++;
+  }
+  S.maxPop=cap;
+  // целевое настроение и плавный дрейф к нему
+  let target = 50;
+  target += parks*4;
+  target -= huts*4;
+  target += (S.resources.cloth>0?4:0);
+  target += (S.beerDays?5:0);
+  target += ideologyHappy();
+  if ((S.god==='hearth') && S.blessingDays>0) target += 3;
+  if (S.resources.food<10) target -= 18;
+  if (S.citizens.some(c=>c.sick)) target -= 6;
+  if (S.faith>0 && S.god) target += 2;
+  target = Math.max(0, Math.min(100, target));
+  S.happiness += (target - S.happiness) * 0.15;
+  S.happiness = Math.round(S.happiness*10)/10;
+}
+
+// Старение + рождаемость + смерть от старости
+function agingAndDeath(){
+  // старение
+  for (const c of S.citizens) c.age++;
+  // рождаемость: каждые несколько дней появляется ребёнок, если есть жильё
+  const growthMult = hasTech('guilds') ? 1.5 : 1;
+  if (S.citizens.length < S.maxPop && S.citizens.length>0 && Math.random() < 0.12*growthMult*diff().birth){
+    S.citizens.push(makeCitizen(0));
+    addLog('👶 Родился житель!','good');
+    syncPop();
+  }
+  // смерть от старости (>70 лет с растущей вероятностью)
+  const before = S.citizens.length;
+  S.citizens = S.citizens.filter(c=>{
+    if (c.age>=70 && Math.random() < 0.4) return false;     // старость
+    if (c.age>=85 && Math.random() < 0.8) return false;
+    return true;
+  });
+  if (S.citizens.length < before){
+    syncPop();
+    addLog(`⚰️ ${before-S.citizens.length} житель(ей) умер(ли) от старости.`,'bad');
+  }
+}
+
+// Дикая опасность: зависит от отсутствия охотников и стражей
+function wildDangerLevel(){
+  let hunters=0, guards=0;
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    const b=S.land[r][c]; if(!b) continue;
+    if (b.type==='hunter'&&b.workers>0) hunters++;
+    if ((b.type==='guard'||b.type==='tower')&&b.workers>0) guards++;
+  }
+  const base = 0.15;
+  return Math.max(0, base - hunters*0.06 - guards*0.04);
+}
+
+// Сколько лекарей работает
+function healers(){
+  let h=0;
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    const b=S.land[r][c]; if(b && b.type==='healer' && b.workers>0) h++;
+  }
+  return h;
+}
+
+// Болезни: жители могут заболеть; лечебница снижает вероятность и лечит
+function sickness(){
+  if (S.citizens.length===0) return;
+  const docs = healers();
+  let baseChance = 0.02;
+  if (docs>0) baseChance -= 0.012;
+  if (hasTech('medicine')) baseChance *= 0.5;
+  if (blessActive('health')) baseChance *= 0.2;
+  const someoneGotSick=true;
+  let newlySick = 0;
+  for (const c of S.citizens){
+    if (c.sick) continue;
+    if (Math.random() < Math.max(0.002, baseChance)){
+      c.sick = docs>0 ? 3 : 7;   // с врачами болеют короче и реже
+      newlySick++;
+    }
+  }
+  if (newlySick>0) addLog(`🤒 ${newlySick==1?'Один житель':newlySick+' жителя'} заболел(и). Лечите болезнь лечебницей!`,'bad');
+  // лечение и смерть больных
+  let died=0;
+  S.citizens = S.citizens.filter(c=>{
+    if (!c.sick) return true;
+    c.sick--;                       // дни болезни
+    if (docs>0) c.sick--;           // врачи ускоряют выздоровление
+    if (c.sick<=0){ c.sick=0; return true; }        // выздоровел
+    // без врачей болезнь может убить
+    if (c.age>=60 || Math.random()<0.02) { died++; return false; }
+    return true;
+  });
+  if (died>0){ syncPop(); addLog(`🩺 Болезнь унесла ${died} жителя(ей).`,'bad'); }
+}
+
+function randomEvent(){
+  if (Math.random()<0.12 && S.day>5){
+    const ev=Math.random();
+    const lim=limits();
+    if (ev<0.3){ const b=10+Math.floor(Math.random()*15); S.resources.food=Math.min(lim.food,S.resources.food+b); addLog(`🌧 Урожайный дождь! +${b} еды`,'good'); }
+    else if (ev<0.6){ const b=5+Math.floor(Math.random()*10); S.resources.gold=Math.min(lim.gold,S.resources.gold+b); addLog(`🪙 Ярмарка! +${b} золота`,'good'); }
+    else if (ev<0.8){ banditRaid(); }
+    else { const st=Math.floor(Math.random()*5)+1; S.resources.gold=Math.max(0,S.resources.gold-st); addLog(`🎭 Бродяги украли ${st} золота!`,'bad'); }
+  }
+  // дикие звери
+  if (S.day>3 && Math.random()< (S.wildDanger||0.15)){
+    wildAttack();
+  }
+}
+
+// Общая защита города: стены, рвы, частоколы, башни (только рабочие башни)
+function defensePower(){
+  let def=0, towers=0;
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    const b=S.land[r][c]; if(!b) continue;
+    if (b.type==='palisade') def+=4;
+    if (b.type==='wall') def+=12;
+    if (b.type==='moat') def+=3;
+    if (b.type==='tower' && b.workers>0){ def+=8; towers++; }
+  }
+  def = Math.round(def * mult('def'));
+  return { total:def, towers };
+}
+
+// Сколько воинов (стража + лучники в башнях)
+function soldierCount(){
+  let n=0;
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    const b=S.land[r][c]; if(!b) continue;
+    const info=BUILDINGS[b.type];
+    if (info && info.soldier && b.workers>0) n+=1;
+  }
+  return n;
+}
+
+function banditRaid(){
+  if (S.shieldDays > 0){ addLog('🛡 Щит отразил набег — город в безопасности','good'); return; }
+  const defP = defensePower();
+  const soldiers = soldierCount();
+  const strength = (3 + Math.floor(Math.random()*6)) * diff().raid;    // сила набега
+  const totalDef = defP.total + soldiers*6;
+  if (Math.random()<0.5 || totalDef>=strength*2){
+    // отражён
+    const lost = Math.floor(Math.random()*4);
+    if (totalDef>=strength*2){ addLog(`🛡 Грабители отбиты! Оборона сработала (${totalDef} против ${strength}).`,'good'); }
+    else {
+      const stolen = Math.floor(Math.random()*8);
+      S.resources.gold=Math.max(0,S.resources.gold-stolen);
+      addLog(`🛡 Грабители прорвались, украли ${stolen} золота.`,'bad');
+    }
+  } else {
+    // набег удачен
+    const stolen = Math.floor(Math.random()*15)+3;
+    const lim=limits();
+    S.resources.gold=Math.max(0,S.resources.gold-stolen);
+    addLog(`🥷 Грабители разграбили город! -${stolen} золота.`,'bad');
+  }
+}
+
+// Атака диких зверей
+function wildAttack(){
+  const defP = defensePower();
+  const soldiers = soldierCount();
+  const guards = (S.citizens.filter(c=>c.age>=16&&!c.sick).length);
+  const threat = 1.0;
+  const protection = defP.total*0.5 + soldiers*8 + (S.wildDanger*0);
+  if (Math.random() < 0.5+ (1-protection/30)){
+    const victim = S.citizens.find(c=>c.age>=14);
+    if (victim){
+      const i=S.citizens.indexOf(victim);
+      S.citizens.splice(i,1); syncPop();
+      addLog(`🐺 Дикий зверь напал! Погиб житель. Стройте охотников и стражу.`,'bad');
+    }
+  } else {
+    addLog('🐺 Дикий зверь замечен, но охотники и стража отогнали его.','good');
+  }
+}
+
+// ---------- Отрисовка ----------
+// --- Помощники отрисовки ---
+function shadeHex(hex, amt){
+  const h = String(hex).replace('#','');
+  const n = parseInt(h, 16);
+  let r=(n>>16)&255, g=(n>>8)&255, b=n&255;
+  if (amt >= 0){ r += (255-r)*amt; g += (255-g)*amt; b += (255-b)*amt; }
+  else { r *= (1+amt); g *= (1+amt); b *= (1+amt); }
+  return 'rgb(' + (r|0) + ',' + (g|0) + ',' + (b|0) + ')';
+}
+function roundRectPath(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+function cellNoise(r,c,k){
+  const n = Math.sin(r*127.1 + c*311.7 + k*74.7) * 43758.5453;
+  return n - Math.floor(n);
+}
+
+function renderBoard(){
+  const W = COLS*CELL, H = ROWS*CELL;
+  ctx.clearRect(0,0,W,H);
+  const sea = currentSeason();
+
+  // земля и вода
+  for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++){
+    const x = c*CELL, y = r*CELL;
+    const t = S.water[r][c];
+    if (t !== 0){
+      const g = ctx.createLinearGradient(x, y, x+CELL, y+CELL);
+      if (t===2){ g.addColorStop(0,'#2f74bd'); g.addColorStop(1,'#164b86'); }
+      else { g.addColorStop(0,'#5cbcd6'); g.addColorStop(1,'#2f8fae'); }
+      ctx.fillStyle = g;
+      ctx.fillRect(x, y, CELL, CELL);
+      if ((r+c)%3 === 0){
+        ctx.fillStyle = 'rgba(255,255,255,.12)';
+        ctx.fillRect(x+4, y+7, CELL-10, 2);
+      }
+    } else {
+      const f = S.fertility[r][c];
+      const tt = f/200;
+      const R = Math.round(150 - 60*tt), G = Math.round(170 + 40*tt), B = Math.round(105 - 45*tt);
+      ctx.fillStyle = 'rgb(' + R + ',' + G + ',' + B + ')';
+      ctx.fillRect(x, y, CELL, CELL);
+      const n1 = cellNoise(r,c,1), n2 = cellNoise(r,c,2), n3 = cellNoise(r,c,3);
+      ctx.fillStyle = n1 > 0.5 ? 'rgba(255,255,255,.06)' : 'rgba(0,0,0,.07)';
+      ctx.fillRect(x + n1*(CELL-3), y + n2*(CELL-3), 2, 2);
+      if (n3 > 0.55){
+        ctx.fillStyle = 'rgba(255,255,255,.05)';
+        ctx.fillRect(x + n2*(CELL-3), y + n3*(CELL-3), 1.5, 1.5);
+      }
+    }
+  }
+
+  // сетка
+  ctx.strokeStyle = 'rgba(0,0,0,.10)'; ctx.lineWidth = 1;
+  for (let i=0;i<=COLS;i++){ ctx.beginPath(); ctx.moveTo(i*CELL,0); ctx.lineTo(i*CELL,H); ctx.stroke(); }
+  for (let i=0;i<=ROWS;i++){ ctx.beginPath(); ctx.moveTo(0,i*CELL); ctx.lineTo(W,i*CELL); ctx.stroke(); }
+
+  // дороги
+  for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++){
+    if (!S.roads[r][c]) continue;
+    const x = c*CELL, y = r*CELL;
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = 4; ctx.shadowOffsetY = 1;
+    ctx.fillStyle = '#8b7365';
+    roundRectPath(x+3, y+3, CELL-6, CELL-6, 6);
+    ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255,255,255,.35)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4,4]);
+    ctx.beginPath();
+    ctx.moveTo(x+CELL/2, y+4);
+    ctx.lineTo(x+CELL/2, y+CELL-4);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // месторождения
+  const depShow = {
+    forest:{c:'#2e7d32', t:'🌲'},
+    rock:  {c:'#607d8b', t:'⛰'},
+    copper:{c:'#b87333', t:'🟠'},
+    iron:  {c:'#5c6b73', t:'⚙'},
+    silver:{c:'#b0bec5', t:'⚪'},
+    gold:  {c:'#f9a825', t:'💎'},
+  };
+  for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++){
+    const dep = S.deposits[r][c]; if (!dep) continue;
+    if (S.land[r][c] || S.roads[r][c]) continue;
+    const ds = depShow[dep.type]; if (!ds) continue;
+    const x = c*CELL, y = r*CELL, cx = x+CELL/2, cy = y+CELL/2;
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = 4; ctx.shadowOffsetY = 1;
+    ctx.fillStyle = shadeHex(ds.c, .12);
+    ctx.beginPath(); ctx.arc(cx, cy, CELL/2-6, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(cx, cy, CELL/2-6, 0, Math.PI*2); ctx.stroke();
+    ctx.font = '12px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(ds.t, cx, cy-1);
+    const frac = Math.max(0, Math.min(1, dep.left/dep.max));
+    ctx.fillStyle = 'rgba(0,0,0,.4)';
+    roundRectPath(x+5, y+CELL-8, CELL-10, 3, 1.5); ctx.fill();
+    ctx.fillStyle = frac > 0.4 ? '#7bdc9a' : '#ff8080';
+    roundRectPath(x+5, y+CELL-8, (CELL-10)*frac, 3, 1.5); ctx.fill();
+  }
+
+  // здания
+  const sprite={farm:{c:'#7cb342',t:'🌾'},pasture:{c:'#9ccc65',t:'🐄'},lumber:{c:'#6d4c41',t:'🌲'},
+    stone:{c:'#78909c',t:'⛏'},mine:{c:'#8a6d3b',t:'⛏'},goldmine:{c:'#f9a825',t:'💎'},
+    hunter:{c:'#558b2f',t:'🏹'},guard:{c:'#455a64',t:'🗼'},
+    smithy:{c:'#bf360c',t:'🔥'},weaver:{c:'#8e24aa',t:'🧵'},brewery:{c:'#f57c00',t:'🍺'},
+    house:{c:'#42a5f5',t:'🏠'},shack:{c:'#bdbdbd',t:'🛖'},park:{c:'#66bb6a',t:'🌳'},
+    healer:{c:'#ec407a',t:'💉'},temple:{c:'#fbc02d',t:'⛪'},
+    market:{c:'#ffb300',t:'🏪'},barn:{c:'#a1887f',t:'🏚'},store:{c:'#8d6e63',t:'🏗'},
+    fishboat:{c:'#26a69a',t:'🛶'},merchant:{c:'#5c6bc0',t:'⛵'},
+    palisade:{c:'#795548',t:'🚧'},wall:{c:'#78909c',t:'🧱'},moat:{c:'#4a6fa5',t:'🕳'},tower:{c:'#6d4c41',t:'🏰'}};
+  for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++){
+    const b = S.land[r][c]; if (!b) continue;
+    const sp = sprite[b.type]; if (!sp) continue;
+    const x = c*CELL, y = r*CELL;
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,.4)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 2;
+    const g = ctx.createLinearGradient(x, y, x, y+CELL);
+    g.addColorStop(0, shadeHex(sp.c, .28));
+    g.addColorStop(1, shadeHex(sp.c, -.28));
+    ctx.fillStyle = g;
+    roundRectPath(x+2.5, y+2.5, CELL-5, CELL-5, 7);
+    ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255,255,255,.22)'; ctx.lineWidth = 1;
+    roundRectPath(x+3.5, y+3.5, CELL-7, CELL-7, 6);
+    ctx.stroke();
+    ctx.font = '16px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(sp.t, x+CELL/2, y+CELL/2);
+    if ((b.level||1) > 1){
+      ctx.fillStyle = 'rgba(10,16,26,.72)';
+      roundRectPath(x+3, y+3, 20, 11, 5); ctx.fill();
+      ctx.fillStyle = '#ffe9a8';
+      ctx.font = 'bold 8px system-ui, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('ур.'+(b.level), x+13, y+9);
+    }
+    if (b.need && b.workers <= 0){
+      ctx.fillStyle = '#ff6b6b';
+      ctx.beginPath(); ctx.arc(x+CELL-6, y+6, 3, 0, Math.PI*2); ctx.fill();
+    }
+  }
+
+  // сезонная тонировка и виньетка
+  if (sea.name === 'Зима'){ ctx.fillStyle = 'rgba(220,235,255,.26)'; ctx.fillRect(0,0,W,H); }
+  else if (sea.name === 'Осень'){ ctx.fillStyle = 'rgba(255,150,60,.06)'; ctx.fillRect(0,0,W,H); }
+  else if (sea.name === 'Лето'){ ctx.fillStyle = 'rgba(255,220,120,.05)'; ctx.fillRect(0,0,W,H); }
+
+  const vg = ctx.createRadialGradient(W/2,H/2, Math.min(W,H)*0.35, W/2,H/2, Math.max(W,H)*0.72);
+  vg.addColorStop(0,'rgba(0,0,0,0)');
+  vg.addColorStop(1,'rgba(0,0,0,.30)');
+  ctx.fillStyle = vg;
+  ctx.fillRect(0,0,W,H);
+
+  ctx.strokeStyle = 'rgba(255,255,255,.15)'; ctx.lineWidth = 1;
+  ctx.strokeRect(0.5, 0.5, W-1, H-1);
+}
+
+// ---------- UI ----------
+function updateUI(){
+  document.getElementById('st-day').textContent=S.day;
+  const sea=currentSeason();
+  document.getElementById('season-name').textContent = sea.emo+' '+sea.name;
+  document.getElementById('season-note').textContent = seasonNote(sea);
+  const h=document.getElementById('st-happy'); h.textContent=Math.round(S.happiness)+'%';
+  const geo=document.getElementById('geo');
+  if (S.happiness>=70){geo.textContent='😄 Отлично';h.style.color='#66bb6a';}
+  else if(S.happiness>=40){geo.textContent='😐 Нормально';h.style.color='#ffd54f';}
+  else{geo.textContent='😡 Недовольно';h.style.color='#ef5350';}
+
+  // Статистика города: население, больные, оборона, воины
+  const sick = S.citizens.filter(c=>c.sick).length;
+  const defP = defensePower();
+  const sold = soldierCount();
+  const popEl=document.getElementById('st-pop');
+  if (popEl){
+    popEl.textContent = `${S.citizens.length}/${S.maxPop}`;
+    popEl.style.color = sick? '#ef5350' : (S.citizens.length>=S.maxPop?'#ffd54f':'#66bb6a');
+  }
+  const secEl=document.getElementById('st-sec');
+  if (secEl) secEl.textContent = (defP.total + sold*6) + (defP.towers?'(+⬆)':'');
+  const soldEl=document.getElementById('st-sold');
+  if (soldEl) soldEl.textContent = sold;
+
+  const resNames = RES_META;
+  const lim=limits(), prod=S.lastProd||{};
+  const resbar=document.getElementById('resbar'); resbar.innerHTML='';
+  for(let k in resNames){
+    const d=document.createElement('div');
+    d.className='stat'+(k==='food'&&S.resources.food<20?' red':'');
+    const p=prod[k]||0;
+    const full = S.resources[k] >= (lim[k]||0)-0.5;
+    d.innerHTML=`<span class="geotag-row">${resNames[k].i} ${resNames[k].n}</span> <b class="val">${Math.floor(S.resources[k]||0)}</b>
+      <span class="rate cap">/ ${Math.floor(lim[k]||0)} ${full?'🔄 по-лого':''}</span>
+      ${p>0?`<span class="rate">напр.+${p}</span>`:''}`;
+    resbar.appendChild(d);
+  }
+  // вера
+  const faithEl=document.getElementById('st-faith');
+  if (faithEl) faithEl.textContent = Math.floor(S.faith||0);
+
+  renderBuildBar();
+  renderTech();
+  renderReligion();
+  renderIdeology();
+  renderPeople();
+  updateMetaUI();
+  updateEngagementUI();
+}
+
+function seasonNote(sea){
+  const m=sea.mult;
+  const parts=[];
+  if(m.food!==1) parts.push('ед x'+m.food);
+  if(m.wood!==1) parts.push('др x'+m.wood);
+  if(m.stone!==1) parts.push('кам x'+m.stone);
+  const nex=nextSeason();
+  return '→ '+nex.emo+' '+nex.name+' че/ '+(parts.length?parts.join(', '):'обычный сезон');
+}
+
+function costLine(cost){
+  const parts=[];
+  for (const k in cost){ if (cost[k]>0) parts.push(`${RES_META[k].i}${cost[k]}`); }
+  return parts.join(' ') || '—';
+}
+
+function renderBuildChips(){
+  const chips=document.getElementById('buildChips'); if(!chips) return;
+  chips.innerHTML='';
+  const all=document.createElement('button');
+  all.className='chip'+(!S.catFilter?' active':'');
+  all.textContent='Все';
+  all.onclick=()=>{ S.catFilter=null; updateUI(); };
+  chips.appendChild(all);
+  for (const key in CATS){
+    const ch=document.createElement('button');
+    ch.className='chip'+(S.catFilter===key?' active':'');
+    ch.textContent=CATS[key];
+    ch.onclick=()=>{ S.catFilter=key; updateUI(); };
+    chips.appendChild(ch);
+  }
+}
+
+function renderBuildBar(){
+  renderBuildChips();
+  const bb=document.getElementById('buildBar'); bb.innerHTML='';
+  for(let k in BUILDINGS){
+    const b=BUILDINGS[k];
+    if (S.catFilter && b.cat!==S.catFilter) continue;
+    const d=document.createElement('div');
+    const aff=checkAfford(b.cost);
+    const techLocked = !!(b.unlock && !hasTech(b.unlock));
+    const lvlLocked = !!(b.lvl && (S.level||1) < b.lvl);
+    const locked = techLocked || lvlLocked;
+    d.className='card'+(aff&&!locked?'':' dis')+(S.selectedType===k?' sel':'');
+    const lockLine = techLocked
+      ? `<div class="req">🔒 нужно: ${TECHS[b.unlock].name}</div>`
+      : (lvlLocked ? `<div class="req">🏅 нужен уровень ${b.lvl}</div>` : '');
+    d.innerHTML=`<div class="name">${EMO[k]} ${b.name}</div>
+      <div class="cost">${costLine(b.cost)}</div>
+      <div class="desc">${b.desc}</div><div class="info">${b.info}</div>${lockLine}`;
+    d.onclick=()=>{
+      if (techLocked){ addLog(`Нужна технология «${TECHS[b.unlock].name}»`,'bad'); return; }
+      if (lvlLocked){ addLog(`Нужен уровень города ${b.lvl}`,'bad'); return; }
+      select(k);
+    };
+    bb.appendChild(d);
+  }
+}
+
+function renderTech(){
+  const tp=document.getElementById('techPanel'); tp.innerHTML='';
+  const tiers={1:'I. Основы',2:'II. Развитие',3:'III. Продвинутые',4:'IV. Вершина'};
+  for (const tier of [1,2,3,4]){
+    const title=document.createElement('div');
+    title.className='bar-title'; title.style.width='100%';
+    title.textContent=tiers[tier];
+    tp.appendChild(title);
+    for(let k in TECHS){
+      const t=TECHS[k]; if (t.tier!==tier) continue;
+      const d=document.createElement('div');
+      const done=hasTech(k);
+      const unlocked=!t.req||hasTech(t.req);
+      const tc = techCost(k);
+      const aff=$techAfford(done,unlocked,tc);
+      d.className='card'+(done?' done':(aff?'':' dis'));
+      const costLine_=done?'':(unlocked?`🪙${tc}`:`🔒 ${TECHS[t.req].name}`);
+      d.innerHTML=`<div class="name">${t.name}</div><div class="cost">${costLine_}</div><div class="desc">${t.desc}</div>`;
+      d.onclick=()=>{ if(!done&&unlocked) clickedTech(k); };
+      tp.appendChild(d);
+    }
+  }
+}
+function $techAfford(done,unlocked,cost){ if(done||!unlocked) return true; return S.resources.gold>=cost; }
+
+function renderReligion(){
+  const p=document.getElementById('religionPanel'); if(!p) return;
+  p.innerHTML='';
+  const head=document.createElement('div');
+  head.className='bar-title'; head.style.width='100%';
+  head.innerHTML=`<span>🕯 Вера: <b style="color:var(--gold)">${Math.floor(S.faith||0)}</b></span>`;
+  p.appendChild(head);
+  // выбор бога
+  for (const key in GODS){
+    const g=GODS[key], d=document.createElement('div');
+    const sel = S.god===key;
+    d.className='card god'+(sel?' sel':'');
+    d.innerHTML=`<div class="name">${g.emo} ${g.name}</div>
+      <div class="desc">${g.domain}</div><div class="info">${g.desc}</div>`;
+    d.onclick=()=>{
+      S.god=key;
+      addLog(`🕯 Покровитель города: ${g.name}`, 'good');
+      updateUI();
+    };
+    p.appendChild(d);
+  }
+  // благословения
+  const bl=document.createElement('div');
+  bl.className='bar-title'; bl.style.width='100%';
+  bl.textContent='✨ Благословения';
+  p.appendChild(bl);
+  for (const key in BLESSINGS){
+    const b=BLESSINGS[key], d=document.createElement('div');
+    const active = S.blessing===key && S.blessingDays>0;
+    const can = (S.faith||0) >= b.cost;
+    d.className='card'+(can?'':' dis')+(active?' sel':'');
+    d.innerHTML=`<div class="name">${b.emo} ${b.name}</div>
+      <div class="cost">🕯${b.cost}</div><div class="desc">${b.desc}</div>
+      ${active?`<div class="info">Активно: ${S.blessingDays} дн.</div>`:''}`;
+    d.onclick=()=>buyBlessing(key);
+    p.appendChild(d);
+  }
+}
+
+function buyBlessing(key){
+  const b=BLESSINGS[key];
+  if (!b) return;
+  if ((S.faith||0) < b.cost){ addLog('Недостаточно веры. Постройте храмы!','bad'); return; }
+  S.faith -= b.cost;
+  S.blessing = key;
+  S.blessingDays = b.days;
+  addLog(`✨ Благословение «${b.name}» ниспослано на ${b.days} дней!`, 'good');
+  haptic('ok');
+  addXP(10); questEvent('bless');
+  renderBoard(); updateUI();
+}
+
+function renderPeople(){
+  const p=document.getElementById('peoplePanel'); if(!p) return;
+  p.innerHTML='';
+  const head=document.createElement('div');
+  head.className='bar-title'; head.style.width='100%';
+  const working = S.citizens.filter(c=>c.sick||c.age<10).length;
+  head.innerHTML=`<span>👥 Жителей: <b>${S.citizens.length}</b> из ${S.maxPop} · свободных работников: <b>${S.freeWorkers||0}</b></span>`;
+  p.appendChild(head);
+  const rows=document.createElement('div');
+  rows.style.cssText='width:100%; max-height:260px; overflow-y:auto; display:flex; flex-direction:column; gap:4px;';
+  S.citizens.forEach((c,i)=>{
+    const row=document.createElement('div');
+    const sick = c.sick ? ' 🤒' : '';
+    const kid = c.age<10 ? ' 👶' : '';
+    const sk = SKILLS.map(s=>`${SKILL_NAMES[s].split(' ')[0]}${c.skills[s]}`).join(' · ');
+    row.style.cssText='background:var(--panel2); border-radius:6px; padding:4px 8px; font-size:11.5px; display:flex; justify-content:space-between; gap:8px; color:var(--muted);';
+    row.innerHTML=`<span>#${i+1} · ${c.age} лет${kid}${sick}</span><span style="color:var(--accent)">${sk}</span>`;
+    rows.appendChild(row);
+  });
+  p.appendChild(rows);
+}
+
+function renderIdeology(){
+  const p=document.getElementById('ideologyPanel'); if(!p) return;
+  p.innerHTML='';
+  const head=document.createElement('div');
+  head.className='bar-title'; head.style.width='100%';
+  head.textContent = S.ideology ? `🏛 Курс: ${IDEOLOGIES[S.ideology].name}` : '🏛 Выберите идеологию города';
+  p.appendChild(head);
+  for (const key in IDEOLOGIES){
+    const ideo=IDEOLOGIES[key], d=document.createElement('div');
+    const sel = S.ideology===key;
+    d.className='card ideo'+(sel?' sel':'');
+    d.innerHTML=`<div class="name">${ideo.emo} ${ideo.name}</div><div class="desc">${ideo.desc}</div>`;
+    d.onclick=()=>{
+      if (S.ideology===key) return;
+      S.ideology=key;
+      addLog(`🏛 Город принял идеологию «${ideo.name}»`, 'good');
+      updateUI();
+    };
+    p.appendChild(d);
+  }
+}
+
+function checkAfford(cost){ for(let k in cost) if((S.resources[k]||0)<cost[k]) return false; return true; }
+
+function select(type){ S.selectedType = S.selectedType===type?null:type; updateUI(); }
+function selectTech(k){ S.selectedTech = S.selectedTech===k?null:k; updateUI(); }
+function clickedTech(k){
+  const t=TECHS[k];
+  if (hasTech(k)) return;
+  const unlocked = !t.req || hasTech(t.req);
+  if (!unlocked){ addLog(`Нужна технология «${TECHS[t.req].name}»`, 'bad'); return; }
+  const tc = techCost(k);
+  if (S.resources.gold<tc){ addLog('Недостаточно золота!', 'bad'); return; }
+  S.resources.gold-=tc; S.techs[k]=true; S.selectedTech=null;
+  addLog(`🔬 Исследовано: ${t.name}!`, 'good');
+  haptic('ok');
+  addXP(20); questEvent('techs');
+  renderBoard(); updateUI();
+}
+
+// ---------- Клик ----------
+CV.addEventListener('click',(e)=>{
+  if(!S||S.over) return;
+  const rect=CV.getBoundingClientRect();
+  const sx=(e.clientX-rect.left)*(CV.width/rect.width);
+  const sy=(e.clientY-rect.top)*(CV.height/rect.height);
+  const r=Math.floor(sy/CELL), c=Math.floor(sx/CELL);
+  if (S.mode==='demolish') demolishAt(r,c);
+  else if (S.mode==='upgrade') upgradeAt(r,c);
+  else buildAt(r,c);
+});
+
+function buildAt(r,c){
+  if(r<0||r>=ROWS||c<0||c>=COLS) return;
+  if(!S.selectedType){ addLog('Сначала выберите здание 👇','bad'); return; }
+  const type=S.selectedType;
+  const b=BUILDINGS[type];
+  // дорога — особый случай
+  if (type==='road'){
+    if (S.land[r][c]){ addLog('Здесь уже есть постройка','bad'); return; }
+    if (S.roads[r][c]){ addLog('Дорога уже есть','bad'); return; }
+    if (S.water[r][c]!==0){ addLog('Дорогу не проложить по воде','bad'); return; }
+    if (!pay(b.cost)){ addLog('Недостаточно камня!','bad'); return; }
+    S.roads[r][c]=true;
+    computeTravel();
+    haptic('light');
+    addXP(3); questEvent('roads');
+    renderBoard(); updateUI();
+    return;
+  }
+  if(S.land[r][c]){ addLog('Здесь уже есть постройка','bad'); return; }
+  if(S.roads[r][c]){ addLog('Здесь проложена дорога — снесите её','bad'); return; }
+  const wet=S.water[r][c];
+  // проверка размещения на воде до оплаты
+  if (b.onWater){ if(wet===0){ addLog('Корабль нужно строить на воде!','bad'); return; } if(b.water==='sea'&&wet!==2){ addLog('Торговый корабль — только на солёном море!','bad'); return; } }
+  else if (wet!==0){ addLog('На воде нельзя строить это здание','bad'); return; }
+  if (b.unlock && !hasTech(b.unlock)){ addLog(`Нужна технология «${TECHS[b.unlock].name}»`,'bad'); return; }
+  if (b.lvl && (S.level||1) < b.lvl){ addLog(`Нужен уровень города ${b.lvl}`,'bad'); return; }
+  const ok=placeBuilding(type,r,c);
+  if(ok){
+    const dep=S.deposits[r][c];
+    let depMsg='';
+    if (dep){
+      const names={forest:'лесу',rock:'скалах',copper:'меди',iron:'железе',silver:'серебре',gold:'золотой жиле'};
+      const mul=depBonus({type, dep});
+      depMsg = ` на ${names[dep.type]}${mul>1?` (добыча x${mul})`:''}`;
+    }
+    if(type==='farm'){
+      const f=S.fertility[r][c];
+      addLog(`✅ Ферма на земле ${f>=150?'🥇 плодородной':f>=110?'🌿 хорошей':'🪨 бедной'} (${Math.round(f)})`,'good');
+    } else addLog(`✅ Построено: ${BUILDINGS[type].name}${depMsg}`,'good');
+    haptic('light');
+    addXP(8); questEvent('built');
+    fxBurst(r, c, [127,220,255]);
+    computeTravel();
+    renderBoard(); updateUI();
+  } else addLog('Недостаточно ресурсов!','bad');
+}
+
+// ---------- Вкладки ----------
+document.querySelectorAll('.tabbtn[data-tab]').forEach(btn=>{
+  btn.onclick=()=>{
+    const tab=btn.dataset.tab;
+    document.querySelectorAll('.tabbtn[data-tab]').forEach(b=>b.classList.toggle('active', b===btn));
+    document.querySelectorAll('.pane').forEach(p=>p.classList.remove('active'));
+    const pane=document.getElementById('pane-'+tab);
+    if (pane) pane.classList.add('active');
+  };
+});
+
+// ---------- Кнопки ----------
+document.getElementById('btn-demolish').onclick=()=>setBuildMode('demolish');
+document.getElementById('btn-upgrade').onclick=()=>setBuildMode('upgrade');
+document.getElementById('btn-speed').onclick=()=>{
+  S.speed=S.speed===1?2:S.speed===2?4:1;
+  document.getElementById('btn-speed').textContent='▶x'+S.speed;
+  startLoop(BASE_TICK/S.speed);
+};
+document.getElementById('btn-pause').onclick=()=>{
+  S.paused=!S.paused;
+  syncPauseBtn();
+};
+function syncPauseBtn(){
+  document.getElementById('btn-pause').textContent=S.paused?'▶ Продолжить':'⏸ Пауза';
+  tgUpdateMainButton();
+}
+
+function saveGame(){
+  let str;
+  try { str = JSON.stringify(S); } catch(e){ return; }
+  try { localStorage.setItem(SAVE_KEY, str); } catch(e){}
+  try {
+    if (TG && TG.CloudStorage){
+      TG.CloudStorage.setItem('citySave', str, ()=>{});
+    }
+  } catch(e){}
+  addLog('💾 Игра сохранена','good');
+  haptic('ok');
+}
+document.getElementById('btn-save').onclick=()=>saveGame();
+
+// Приведение загруженного сейва к текущей версии игры
+function normalizeLoaded(){
+  if(!S.fertility) S.fertility=genFertility();
+  if(!S.water) S.water=genWater();
+  if(!S.fishStock) S.fishStock=genFishStock(S.water);
+  if(!S.deposits) S.deposits=genDeposits(S.water);
+  if(!S.roads) S.roads=Array.from({length:ROWS},()=>Array(COLS).fill(false));
+  if(!S.resources) S.resources={};
+  for (const k of ['food','wood','stone','gold','fish','ore','wool','cloth','tools'])
+    if (S.resources[k]===undefined) S.resources[k]=0;
+  if (S.god===undefined) S.god=null;
+  if (S.faith===undefined) S.faith=0;
+  if (S.blessing===undefined) S.blessing=null;
+  if (S.blessingDays===undefined) S.blessingDays=0;
+  if (S.ideology===undefined) S.ideology=null;
+  if (S.mode===undefined) S.mode='build';
+  if (S.gems===undefined) S.gems=0;
+  if (S.premium===undefined) S.premium=false;
+  if (!S.boosts) S.boosts={};
+  if (S.daily===undefined) S.daily=null;
+  if (!S.ach) S.ach={};
+  if (S.theme===undefined) S.theme='default';
+  if (S.xp===undefined) S.xp=0;
+  if (S.level===undefined) S.level=1;
+  if (S.qDate===undefined) S.qDate=null;
+  if (!Array.isArray(S.quests)) S.quests=[];
+  if (!S.qStats) S.qStats={};
+  if (S.streak===undefined) S.streak=0;
+  if (S.lastVisit===undefined) S.lastVisit=null;
+  if (!S.themes) S.themes={ default:true };
+  if (S.badge===undefined) S.badge=false;
+  if (S.prestige===undefined) S.prestige=0;
+  if (S.difficulty===undefined) S.difficulty='normal';
+  if (S.patron===undefined) S.patron=false;
+  if (S.shieldDays===undefined) S.shieldDays=0;
+  if (S.doublequest===undefined) S.doublequest=false;
+  if (S.unpaid===undefined) S.unpaid=0;
+  if(!S.citizens){
+    const n = (typeof S.pop==='number')? S.pop : 5;
+    S.citizens = [];
+    for(let i=0;i<Math.max(1,n);i++) S.citizens.push(makeCitizen());
+  } else {
+    S.citizens = S.citizens.map(c=>{
+      const city = makeCitizen(c.age!==undefined ? c.age : 20);
+      city.sick = c.sick||0;
+      if (c.skills){
+        for (const sk of SKILLS) city.skills[sk] = c.skills[sk]||1;
+      }
+      return city;
+    });
+  }
+  syncPop();
+}
+
+function loadGame(){
+  // 1. локальное сохранение — работает и в браузере, и в Telegram
+  try {
+    const s = localStorage.getItem(SAVE_KEY);
+    if (s){ S = JSON.parse(s); normalizeLoaded(); addLog('↩️ Игра загружена','good'); }
+  } catch(e){}
+  // 2. облако Telegram — если там сейв свежее, берём его
+  try {
+    if (TG && TG.CloudStorage){
+      TG.CloudStorage.getItem('citySave', (err, val)=>{
+        if (err || !val) return;
+        try {
+          const cloud = JSON.parse(val);
+          if (((cloud.day||0) > ((S&&S.day)||0))){
+            S = cloud; normalizeLoaded();
+            renderBoard(); updateUI(); syncPauseBtn();
+            addLog('☁️ Загружено из облака Telegram','good');
+          }
+        } catch(e){}
+      });
+    }
+  } catch(e){}
+}
+
+// ---------- Лог ----------
+function addLog(text,cls){
+  if(!S.msg) S.msg=[];
+  S.msg.unshift({t:text,c:cls||'evt'});
+  if(S.msg.length>4) S.msg.pop();
+  const log=document.getElementById('log'); log.innerHTML='';
+  S.msg.forEach(m=>{ const d=document.createElement('div'); d.className='log-'+m.c; d.textContent=m.t; log.appendChild(d); });
+}
+
+// ---------- Финал ----------
+function checkEnd(){
+  if(!S||S.over) return;
+  const day=S.day;
+  if(S.pop<=0&&day>3){ end(false,`Город опустел на ${day} день. Всё население погибло.`); return; }
+  if(S.pop>=25 && S.happiness>=70 && day>=20){ end(true,`За ${day} дней вы выросли в процветающий город с ${Math.floor(S.pop)} жителями!`); }
+}
+function end(win,reason){ S.over=true; S.win=win; overlay(win,reason); }
+function overlay(win,reason){
+  document.getElementById('overlay').classList.remove('hidden');
+  document.getElementById('modal-title').textContent=win?'🎉 ГОРОД ПРОЦВЕТАЕТ!':'💀 ГОРОД ПАЛ';
+  document.getElementById('modal-sub').textContent=reason;
+  const techs=Object.keys(S.techs).length;
+  document.getElementById('modal-stats').innerHTML=`
+    <div>👥 Население <b>${Math.floor(S.pop)}</b></div>
+    <div>📅 День <b>${S.day}</b></div>
+    <div>😊 Счастье <b>${Math.round(S.happiness)}%</b></div>
+    <div>🔬 Технологии <b>${techs}</b></div>`;
+  document.getElementById('modal-goal').textContent=
+    win?'Эпоха процветания наступила!':'Цель: 25+ жителей, счастье 70%+, дожить до 20 дня. Исследуйте технологии!';
+  document.getElementById('modal-btn').textContent='🔄 Играть заново';
+  document.getElementById('modal-btn').onclick=()=>location.reload();
+}
+
+/* ================== МОНЕТИЗАЦИЯ И UX 2.0 ================== */
+
+// URL бэкенда, который создаёт счета Telegram Stars (например https://ваш-бот.ру).
+// Пустая строка = демо-режим: покупка за Stars недоступна, всё остальное работает.
+const PAY_BACKEND = '';
+
+const GEM_PACKS = [
+  { sku:'gems_30',   gems:30,   stars:15,  ico:'✨', title:'Искры', desc:'30 самоцветов · для первого шага' },
+  { sku:'gems_100',  gems:100,  stars:49,  ico:'💎', title:'Горсть самоцветов',  desc:'100 самоцветов' },
+  { sku:'gems_350',  gems:350,  stars:149, ico:'💰', title:'Мешок самоцветов',   desc:'350 самоцветов · бонус +15%' },
+  { sku:'gems_1000', gems:1000, stars:349, ico:'🧰', title:'Сундук самоцветов',  desc:'1000 самоцветов · бонус +30%' },
+];
+
+const GEM_ITEMS = [
+  { sku:'boost2', price:30, ico:'⚡', title:'Ускорение x2', desc:'Производство x2 на 3 дня',
+    buy(){ S.boosts.double = Math.max(S.boosts.double||0, 3); } },
+  { sku:'respack', price:25, ico:'📦', title:'Набор припасов', desc:'+150 еды, +120 дерева, +80 камня',
+    buy(){ addRes('food',150); addRes('wood',120); addRes('stone',80); } },
+  { sku:'fert', price:15, ico:'🌱', title:'Удобрение', desc:'Плодородие всех клеток +15',
+    buy(){ for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) S.fertility[r][c]=Math.min(200, S.fertility[r][c]+15); } },
+  { sku:'premium', price:150, ico:'👑', title:'Премиум-мэр', desc:'+10% ко всем ресурсам навсегда',
+    owned(){ return !!S.premium; },
+    buy(){ S.premium = true; } },
+  { sku:'theme_aurora', price:40, ico:'🎨', title:'Тема «Аврора»', desc:'Фиолетовое свечение интерфейса', theme:'aurora',
+    owned(){ return !!(S.themes && S.themes.aurora); },
+    buy(){ if(!S.themes) S.themes={default:true}; S.themes.aurora=true; S.theme='aurora'; applyThemeClass(); } },
+  { sku:'theme_sunset', price:40, ico:'🌇', title:'Тема «Закат»', desc:'Тёплые оранжевые акценты', theme:'sunset',
+    owned(){ return !!(S.themes && S.themes.sunset); },
+    buy(){ if(!S.themes) S.themes={default:true}; S.themes.sunset=true; S.theme='sunset'; applyThemeClass(); } },
+  { sku:'theme_forest', price:40, ico:'🌲', title:'Тема «Лес»', desc:'Зелёные акценты', theme:'forest',
+    owned(){ return !!(S.themes && S.themes.forest); },
+    buy(){ if(!S.themes) S.themes={default:true}; S.themes.forest=true; S.theme='forest'; applyThemeClass(); } },
+  { sku:'badge', price:60, ico:'🌟', title:'Бейдж мецената', desc:'Значок у названия города, без влияния на игру',
+    owned(){ return !!S.badge; },
+    buy(){ S.badge = true; } },
+  { sku:'patron', price:200, ico:'👑', title:'Покровитель', desc:'+25% производства, +2 💎/день, бейдж',
+    owned(){ return !!S.patron; },
+    buy(){ S.patron = true; S.badge = true; } },
+  { sku:'shield', price:40, ico:'🛡', title:'Щит от набегов', desc:'10 дней без набегов грабителей',
+    buy(){ S.shieldDays = Math.max(S.shieldDays||0, 10); } },
+  { sku:'doublequest', price:120, ico:'🎯', title:'Двойные задания', desc:'Награды заданий ×2 навсегда',
+    owned(){ return !!S.doublequest; },
+    buy(){ S.doublequest = true; } },
+];
+
+// Разовые наборы за звёзды: дают больше, чем пакет самоцветов
+const STAR_BUNDLES = [
+  { sku:'starter', ico:'🎁', title:'Стартовый набор', desc:'200 💎 + ускорение x2 на 3 дня + щит 5 дней', stars:79, gems:200, noDouble:true,
+    apply(){ S.boosts.double = Math.max(S.boosts.double||0, 3); S.shieldDays = Math.max(S.shieldDays||0, 5); } },
+];
+
+function grantGems(n){ S.gems = (S.gems||0) + n; haptic('ok'); }
+function addRes(k, amt){
+  const lim = limits();
+  const cap = lim[k]!==undefined ? lim[k] : Infinity;
+  S.resources[k] = Math.max(0, Math.min(cap, (S.resources[k]||0) + amt));
+}
+
+function toast(text, cls){
+  try {
+    const box = document.getElementById('toasts'); if (!box) return;
+    const el = document.createElement('div');
+    el.className = 'toast ' + (cls||'');
+    el.textContent = text;
+    box.appendChild(el);
+    setTimeout(()=>{ el.classList.add('out'); setTimeout(()=>el.remove(), 280); }, 2800);
+    while (box.children.length > 4) box.removeChild(box.firstChild);
+  } catch(e){}
+}
+
+function applyTheme(){
+  try { document.body.classList.toggle('theme-aurora', S && S.theme==='aurora'); } catch(e){}
+}
+
+function dailyBonus(){
+  const today = new Date().toISOString().slice(0,10);
+  if (S.daily === today){ toast('Бонус дня уже получен — заходите завтра','gem'); return; }
+  S.daily = today;
+  grantGems(5);
+  addRes('food', 30);
+  toast('🎁 Бонус дня: +5 💎 и +30 🌾','gem');
+  renderShop(); renderOffer(); updateUI(); saveGameSilent();
+}
+
+// Покупка самоцветов за Telegram Stars (нужен бэкенд, создающий инвойс)
+async function buyStarsPack(pack){
+  if (!PAY_BACKEND){
+    toast('Демо-режим: оплата Stars подключается через бэкенд (PAY_BACKEND)','gem');
+    return;
+  }
+  try {
+    const url = PAY_BACKEND.replace(/\/$/,'') + '/invoice?sku=' + encodeURIComponent(pack.sku);
+    const r = await fetch(url);
+    const data = await r.json();
+    if (!data || !data.link) throw new Error('no invoice link');
+    if (!(TG && TG.openInvoice)){ toast('Откройте игру внутри Telegram для оплаты','bad'); return; }
+    TG.openInvoice(data.link, (status)=>{
+      if (status === 'paid'){
+        const first = S.firstPurchase !== false;
+        const mult = (first && !pack.noDouble) ? 2 : 1;
+        if (pack.gems) grantGems(pack.gems * mult);
+        if (pack.apply) { try { pack.apply(); } catch(e){} }
+        S.firstPurchase = false;
+        toast(mult > 1 ? '💎 +' + pack.gems*2 + ' · ×2 за первую покупку!' : '💎 +' + (pack.gems||0) + ' — спасибо за поддержку!','gem');
+        renderShop(); updateUI(); saveGameSilent();
+      } else if (status === 'failed'){
+        toast('Платёж не прошёл','bad');
+      }
+    });
+  } catch(e){
+    toast('Не удалось создать счёт на оплату','bad');
+  }
+}
+
+function buyGemItem(item){
+  if ((S.gems||0) < item.price){ toast('Не хватает самоцветов','bad'); return; }
+  S.gems -= item.price;
+  try { item.buy(); } catch(e){}
+  toast('✅ ' + item.title + ' — активировано','good');
+  renderShop(); updateUI(); saveGameSilent();
+}
+
+function renderShop(){
+  const p = document.getElementById('shopPanel');
+  const pane = document.getElementById('pane-shop');
+  if (!p || !pane || !pane.classList.contains('active')) return;
+  p.innerHTML = '';
+
+  const head = document.createElement('div');
+  head.className = 'bar-title'; head.style.width = '100%';
+  head.innerHTML = `<span>💎 Самоцветы: <b style="color:#d9c7ff">${Math.floor(S.gems||0)}</b> · ${diff().name}</span>`;
+  p.appendChild(head);
+
+  const dailyBtn = document.createElement('button');
+  dailyBtn.textContent = '🎁 Забрать бонус дня';
+  dailyBtn.style.marginBottom = '10px';
+  dailyBtn.onclick = dailyBonus;
+  p.appendChild(dailyBtn);
+
+  // --- Пакеты за Telegram Stars (только внутри Telegram) ---
+  if (TG){
+    const sec1 = document.createElement('div');
+    sec1.className = 'shop-section';
+    const t1 = document.createElement('div');
+    t1.className = 'bar-title'; t1.style.width='100%';
+    t1.textContent = '⭐ Купить самоцветы (Telegram Stars)';
+    sec1.appendChild(t1);
+    const grid1 = document.createElement('div'); grid1.className = 'shop-grid';
+    const first = S.firstPurchase !== false;
+    for (const pack of [...GEM_PACKS, ...STAR_BUNDLES]){
+      const el = document.createElement('div'); el.className = 'shop-item';
+      if (pack.noDouble) el.style.borderColor = '#ffd166';
+      const bonus = (first && !pack.noDouble) ? ' · <b style="color:#ffd166">×2 за первую покупку</b>' : '';
+      el.innerHTML = `<div class="ico">${pack.ico}</div>
+        <div class="info"><div class="t">${pack.title}</div><div class="d">${pack.desc}${bonus}</div></div>`;
+      const btn = document.createElement('button');
+      btn.className = 'buy stars';
+      btn.textContent = '⭐ ' + pack.stars;
+      btn.onclick = ()=>buyStarsPack(pack);
+      el.appendChild(btn);
+      grid1.appendChild(el);
+    }
+    sec1.appendChild(grid1);
+    p.appendChild(sec1);
+  } else {
+    const note = document.createElement('div');
+    note.className = 'bar-title'; note.style.width = '100%';
+    note.innerHTML = '<span style="color:var(--muted)">💡 Покупка самоцветов доступна в Telegram-версии игры</span>';
+    p.appendChild(note);
+  }
+
+  // --- Товары за самоцветы ---
+  const sec2 = document.createElement('div');
+  sec2.className = 'shop-section';
+  const t2 = document.createElement('div');
+  t2.className = 'bar-title'; t2.style.width='100%';
+  t2.textContent = '💎 За самоцветы';
+  sec2.appendChild(t2);
+  const grid2 = document.createElement('div'); grid2.className = 'shop-grid';
+  for (const item of GEM_ITEMS){
+    const el = document.createElement('div'); el.className = 'shop-item';
+    el.innerHTML = `<div class="ico">${item.ico}</div>
+      <div class="info"><div class="t">${item.title}</div><div class="d">${item.desc}</div></div>`;
+    const btn = document.createElement('button');
+    btn.className = 'buy';
+    const owned = item.owned ? !!item.owned() : false;
+    const isTheme = !!item.theme;
+    const active = isTheme && S.theme === item.theme;
+    btn.textContent = owned ? (isTheme ? (active ? 'Активно' : 'Включить') : 'Активно') : ('💎 ' + item.price);
+    btn.disabled = owned ? (!isTheme || active) : (S.gems||0) < item.price;
+    btn.onclick = ()=>{
+      if (owned){
+        if (isTheme && !active){
+          S.theme = item.theme;
+          applyThemeClass();
+          renderShop();
+          saveGameSilent();
+          toast('🎨 Тема применена','good');
+        }
+        return;
+      }
+      buyGemItem(item);
+    };
+    el.appendChild(btn);
+    grid2.appendChild(el);
+  }
+  sec2.appendChild(grid2);
+  p.appendChild(sec2);
+}
+
+function updateMetaUI(){
+  try {
+    const g = document.getElementById('st-gems');
+    if (g) g.textContent = Math.floor(S.gems||0);
+    const gb = document.getElementById('goalBox');
+    if (gb){
+      const goals = [
+        { n:'👥 Население', cur:S.citizens.length, max:25, suf:'' },
+        { n:'😊 Счастье', cur:Math.round(S.happiness), max:70, suf:'%' },
+        { n:'📅 Дни', cur:S.day, max:20, suf:'' },
+      ];
+      gb.innerHTML = goals.map(go=>{
+        const pc = Math.max(0, Math.min(100, Math.round(go.cur/go.max*100)));
+        return `<div class="goal"><div class="lbl"><span>${go.n}</span><span>${Math.min(go.cur,go.max)}${go.suf} / ${go.max}${go.suf}</span></div><div class="tr"><i style="width:${pc}%"></i></div></div>`;
+      }).join('');
+    }
+    const shopBtn = document.querySelector('.tabbtn[data-tab="shop"]');
+    if (shopBtn) shopBtn.classList.toggle('has-dot', S.daily !== new Date().toISOString().slice(0,10));
+    renderShop();
+  } catch(e){}
+}
+
+function tickBoosts(){
+  if (!S.boosts) S.boosts = {};
+  if (S.boosts.double > 0){
+    S.boosts.double = Math.max(0, S.boosts.double - 1);
+    if (S.boosts.double === 0) toast('⚡ Ускорение x2 закончилось','gem');
+  }
+}
+
+const ACHIEVEMENTS = [
+  { id:'pop10',  title:'Городок',           desc:'10 жителей',              reward:10, cond:()=>S.citizens.length>=10 },
+  { id:'pop25',  title:'Город',             desc:'25 жителей',              reward:20, cond:()=>S.citizens.length>=25 },
+  { id:'tech1',  title:'Первый шаг науки',  desc:'Исследовать технологию',  reward:5,  cond:()=>Object.keys(S.techs).length>=1 },
+  { id:'tech10', title:'Академия',          desc:'10 технологий',           reward:25, cond:()=>Object.keys(S.techs).length>=10 },
+  { id:'day10',  title:'Десять дней',       desc:'Дожить до 10-го дня',     reward:10, cond:()=>S.day>=10 },
+  { id:'def20',  title:'Крепость',          desc:'Оборона города 20+',      reward:15, cond:()=>defensePower().total>=20 },
+  { id:'temple', title:'Верующий',          desc:'Построить храм',          reward:10, cond:()=>countType('temple')>=1 },
+];
+function checkAchievements(){
+  if (!S.ach) S.ach = {};
+  for (const a of ACHIEVEMENTS){
+    if (S.ach[a.id]) continue;
+    let ok = false;
+    try { ok = a.cond(); } catch(e){}
+    if (ok){
+      S.ach[a.id] = true;
+      grantGems(a.reward);
+      toast('🏅 Достижение «' + a.title + '»: +' + a.reward + ' 💎','gem');
+    }
+  }
+}
+
+let lastAutoSaveDay = 0;
+function saveGameSilent(){
+  try {
+    const str = JSON.stringify(S);
+    localStorage.setItem(SAVE_KEY, str);
+    if (TG && TG.CloudStorage) TG.CloudStorage.setItem('citySave', str, ()=>{});
+  } catch(e){}
+}
+function maybeAutoSave(){
+  if (!S) return;
+  if (S.day - lastAutoSaveDay >= 5){
+    lastAutoSaveDay = S.day;
+    saveGameSilent();
+  }
+}
+
+// Премиум и ускорение влияют на производство
+const _multBase = mult;
+mult = function(kind){
+  let m = _multBase(kind);
+  if (S && S.premium) m *= 1.10;
+  if (S && S.boosts && S.boosts.double > 0 && kind !== 'def') m *= 2;
+  return m;
+};
+
+/* ================== ЭФФЕКТЫ НА КАНВАСЕ ================== */
+const FXC = document.getElementById('fx');
+const fx = FXC ? FXC.getContext('2d') : null;
+let fxFlakes = [], fxFloats = [], hoverCell = null, lastFxDay = -1;
+
+function fxResize(){
+  try { if (FXC && CV){ FXC.width = CV.width; FXC.height = CV.height; } } catch(e){}
+}
+
+function fxSpawnFloat(r,c,text,color){
+  fxFloats.push({ r, c, text, color: color || '#ffe9a8', t: 0 });
+}
+
+function fxFrame(ts){
+  if (!fx) return;
+  requestAnimationFrame(fxFrame);
+  if (!S) return;
+  const W = FXC.width, H = FXC.height, t = (ts||0)/1000;
+  fx.clearRect(0,0,W,H);
+
+  // блики на воде
+  if (!S.paused){
+    fx.fillStyle = 'rgba(255,255,255,.10)';
+    for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++){
+      if (S.water[r][c] === 0) continue;
+      const ox = Math.sin(t*0.9 + r*0.7 + c*0.5) * 4;
+      fx.fillRect(c*CELL + 4 + ox, r*CELL + 7, CELL - 12, 2);
+    }
+  }
+
+  // снег зимой
+  let winter = false;
+  try { winter = currentSeason().name === 'Зима'; } catch(e){}
+  if (winter){
+    if (fxFlakes.length < 70) fxFlakes.push({ x: Math.random()*W, y: -10, vy: 18+Math.random()*30, vx: -8+Math.random()*16, s: 1+Math.random()*2 });
+    for (const f of fxFlakes){
+      f.y += f.vy*0.016; f.x += f.vx*0.016;
+      if (f.y > H){ f.y = -6; f.x = Math.random()*W; }
+      fx.fillStyle = 'rgba(235,245,255,.75)';
+      fx.beginPath(); fx.arc(f.x, f.y, f.s, 0, Math.PI*2); fx.fill();
+    }
+  } else if (fxFlakes.length) fxFlakes.length = 0;
+
+  // подсветка клетки под пальцем/курсором
+  if (hoverCell){
+    const r = hoverCell.r, c = hoverCell.c;
+    let ok = true;
+    if (S.mode === 'demolish') ok = !!(S.land[r][c] || S.roads[r][c]);
+    else if (S.selectedType){
+      const b = BUILDINGS[S.selectedType];
+      if (b){
+        ok = !S.land[r][c] && !(S.selectedType !== 'road' && S.roads[r][c]) &&
+             !(b.onWater ? S.water[r][c] === 0 : S.water[r][c] !== 0);
+      }
+    }
+    fx.fillStyle = ok ? 'rgba(95,214,138,.22)' : 'rgba(255,107,107,.20)';
+    fx.fillRect(c*CELL, r*CELL, CELL, CELL);
+    fx.strokeStyle = ok ? 'rgba(95,214,138,.85)' : 'rgba(255,107,107,.85)';
+    fx.lineWidth = 2;
+    fx.strokeRect(c*CELL+1, r*CELL+1, CELL-2, CELL-2);
+  }
+
+  // всплывающие ресурсы при новом дне
+  if (S.day !== lastFxDay){
+    lastFxDay = S.day;
+    const icons = { farm:'🌾', pasture:'🥛', lumber:'🪵', stone:'🪨', mine:'⛏', goldmine:'💰', fishboat:'🐟', hunter:'🍖', market:'💰', merchant:'⛵' };
+    let n = 0;
+    for (let r=0;r<ROWS && n<5;r++) for (let c=0;c<COLS && n<5;c++){
+      const b = S.land[r][c];
+      if (!b || !icons[b.type]) continue;
+      if (b.need && b.workers <= 0) continue;
+      if (Math.random() < 0.3){ fxSpawnFloat(r,c, icons[b.type]); n++; }
+    }
+  }
+  for (let i=fxFloats.length-1;i>=0;i--){
+    const f = fxFloats[i];
+    f.t += 0.016;
+    if (f.t > 1.6){ fxFloats.splice(i,1); continue; }
+    fx.globalAlpha = Math.max(0, 1 - f.t/1.6);
+    fx.fillStyle = f.color;
+    fx.font = 'bold 12px system-ui, sans-serif';
+    fx.textAlign = 'center'; fx.textBaseline = 'middle';
+    fx.fillText(f.text, f.c*CELL + CELL/2, f.r*CELL + CELL/2 - f.t*24);
+    fx.globalAlpha = 1;
+  }
+  fxDrawBursts();
+}
+
+function fxHoverFromEvent(e){
+  if (!S || !CV) return;
+  const rect = CV.getBoundingClientRect();
+  const sx = (e.clientX - rect.left) * (CV.width / rect.width);
+  const sy = (e.clientY - rect.top) * (CV.height / rect.height);
+  const c = Math.floor(sx / CELL), r = Math.floor(sy / CELL);
+  hoverCell = (r<0||r>=ROWS||c<0||c>=COLS) ? null : { r, c };
+}
+
+/* ================== ВСТУПЛЕНИЕ ================== */
+function showIntro(){
+  try {
+    if (S.introShown || S.day > 1) return;
+    S.introShown = true;
+    const ov = document.getElementById('overlay');
+    if (!ov) return;
+    ov.classList.remove('hidden');
+    document.getElementById('modal-title').textContent = '🏙️ Добро пожаловать, мэр!';
+    document.getElementById('modal-sub').textContent = 'Постройте город мечты: хозяйство, наука, вера и оборона.';
+    document.getElementById('modal-stats').innerHTML = `
+      <div>🌾 Еда <b>основа</b></div>
+      <div>🎫 Работники <b>нужны</b></div>
+      <div>💎 Самоцветы <b>за успехи</b></div>`;
+    document.getElementById('modal-goal').textContent = 'Цель: 25+ жителей и 70%+ счастья к 20-му дню.';
+    const btn = document.getElementById('modal-btn');
+    btn.textContent = '▶ Начать играть';
+    btn.onclick = ()=>{
+      ov.classList.add('hidden');
+      S.paused = false;
+      syncPauseBtn();
+      saveGameSilent();
+      haptic('light');
+    };
+  } catch(e){}
+}
+
+function initMeta(){
+  applyTheme();
+  try {
+    const st = document.createElement('style');
+    st.textContent = 'body.theme-aurora{--accent:#c39bff;--accent2:#7c9cff;} body.theme-aurora #game{box-shadow:0 24px 60px rgba(120,80,200,.35), inset 0 1px 0 rgba(255,255,255,.06);}';
+    document.head.appendChild(st);
+  } catch(e){}
+  try {
+    fxResize();
+    if (fx) requestAnimationFrame(fxFrame);
+    CV.addEventListener('pointermove', fxHoverFromEvent);
+    CV.addEventListener('pointerdown', fxHoverFromEvent);
+    CV.addEventListener('pointerleave', ()=>{ hoverCell = null; });
+  } catch(e){}
+  try {
+    document.querySelectorAll('.tabbtn[data-tab="shop"]').forEach(b=>b.addEventListener('click', renderShop));
+  } catch(e){}
+  updateMetaUI();
+  showIntro();
+}
+
+/* ================== ПРОГРЕСС: ОПЫТ, ЗАДАНИЯ, СОВЕТНИК, ТЕМЫ, ПРЕСТИЖ ================== */
+
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function levelNeed(lvl){ return 100 + ((lvl||1)-1)*60; }
+
+function addXP(n){
+  if (!S) return;
+  S.xp = (S.xp||0) + (n||0);
+  let guard = 0;
+  while (S.xp >= levelNeed(S.level) && guard++ < 50){
+    S.xp -= levelNeed(S.level);
+    S.level = (S.level||1) + 1;
+    const reward = 4 + S.level;
+    grantGems(reward);
+    toast('🏅 Уровень ' + S.level + '! +' + reward + ' 💎','gem');
+    haptic('ok');
+  }
+}
+
+const QUEST_POOL = [
+  { id:'built', ico:'🏗', title:'Строитель',  d:'Построить зданий',       target:3,   gems:6,  res:{wood:40} },
+  { id:'roads', ico:'🛣', title:'Дорожник',   d:'Проложить дорог',        target:3,   gems:5,  res:{stone:30} },
+  { id:'techs', ico:'🔬', title:'Учёный',     d:'Исследовать технологий', target:1,   gems:8 },
+  { id:'food',  ico:'🌾', title:'Кормилец',   d:'Собрать еды',            target:150, gems:6,  res:{food:40} },
+  { id:'pop',   ico:'👥', title:'Рост',       d:'Достичь жителей',        target:12,  gems:8,  absolute:true },
+  { id:'happy', ico:'😊', title:'Уют',        d:'Достичь счастья',        target:65,  gems:7,  absolute:true },
+  { id:'bless', ico:'✨', title:'Благодать',  d:'Получить благословение', target:1,   gems:10 },
+];
+
+function questDef(id){ return QUEST_POOL.find(q=>q.id===id); }
+
+function ensureDaily(){
+  const today = todayStr();
+  if (S.qDate === today) return;
+  const y = new Date(Date.now() - 86400000).toISOString().slice(0,10);
+  S.streak = (S.lastVisit === y || S.lastVisit === today) ? (S.streak||0) + 1 : 1;
+  S.lastVisit = today;
+  S.qDate = today;
+  S.qStats = {};
+  const pool = QUEST_POOL.slice().sort(()=>Math.random()-0.5).slice(0,3);
+  S.quests = pool.map(q=>({ id:q.id, target:q.target, claimed:false }));
+  saveGameSilent();
+}
+
+function questValue(q){
+  const def = questDef(q.id); if (!def) return 0;
+  if (q.id==='pop') return S.citizens.length;
+  if (q.id==='happy') return Math.round(S.happiness);
+  return (S.qStats && S.qStats[q.id]) || 0;
+}
+
+function questEvent(key, n){
+  if (!S.qStats) S.qStats = {};
+  S.qStats[key] = (S.qStats[key]||0) + (n===undefined ? 1 : n);
+}
+
+function claimQuest(id){
+  const q = (S.quests||[]).find(x=>x.id===id);
+  if (!q || q.claimed) return;
+  const def = questDef(id); if (!def) return;
+  if (questValue(q) < q.target) return;
+  q.claimed = true;
+  grantGems(def.gems);
+  if (def.res) for (const k in def.res) addRes(k, def.res[k]);
+  toast('🎯 Задание «' + def.title + '»: +' + def.gems + ' 💎','gem');
+  renderQuests(); updateUI(); saveGameSilent();
+}
+
+function renderQuests(){
+  const p = document.getElementById('questsPanel');
+  const pane = document.getElementById('pane-quests');
+  if (!p || !pane || !pane.classList.contains('active')) return;
+  p.innerHTML = '';
+
+  const head = document.createElement('div');
+  head.className = 'bar-title'; head.style.width = '100%';
+  head.innerHTML = `<span>🔥 Серия входов: <b style="color:var(--gold)">${S.streak||0}</b> дн. · уровень ${S.level||1}</span>`;
+  p.appendChild(head);
+
+  if (!S.quests || !S.quests.length){
+    const e = document.createElement('div');
+    e.className = 'bar-title'; e.textContent = 'Задания обновятся завтра';
+    p.appendChild(e);
+    return;
+  }
+
+  for (const q of S.quests){
+    const def = questDef(q.id); if (!def) continue;
+    const raw = questValue(q);
+    const cur = Math.min(raw, q.target);
+    const done = raw >= q.target;
+    const el = document.createElement('div');
+    el.className = 'quest' + (done ? ' done' : '');
+    el.innerHTML = `<div class="qi">${def.ico}</div>
+      <div class="qb">
+        <div class="qt"><span>${def.title}</span><span>${cur}/${q.target}</span></div>
+        <div class="qd">${def.d}</div>
+        <div class="qtr"><i style="width:${Math.round(cur/q.target*100)}%"></i></div>
+      </div>`;
+    const b = document.createElement('button');
+    b.className = 'qbtn';
+    b.textContent = q.claimed ? '✓' : (done ? '💎 ' + def.gems : '…');
+    b.disabled = q.claimed || !done;
+    b.onclick = ()=>claimQuest(q.id);
+    el.appendChild(b);
+    p.appendChild(el);
+  }
+}
+
+function advisorHint(){
+  let roads = 0;
+  for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++) if (S.roads[r][c]) roads++;
+  if (!countType('house') && S.citizens.length >= 3) return '🏠 Постройте дом — иначе жители не растут';
+  if (S.resources.food < 25) return '🌾 Еды мало: постройте ферму или пастбище';
+  if (!roads) return '🛣 Проложите дорогу к фермам — работа пойдёт быстрее';
+  if (Object.keys(S.techs).length === 0) return '🔬 Откройте «Технологии» и исследуйте первую';
+  if (S.happiness < 45) return '😊 Настроение низкое: добавьте парк или храм';
+  if ((S.day||1) > 8 && defensePower().total < 10) return '🛡 Пора ставить частокол и стражу';
+  if ((S.quests||[]).every(q=>q.claimed)) return '🎯 Все задания дня закрыты — вернитесь завтра';
+  return '✅ Всё под контролем. Развивайте город и копите самоцветы';
+}
+
+function renderAdvisor(){
+  const el = document.getElementById('advisor');
+  if (!el) return;
+  el.innerHTML = '<span>💡</span><span>' + advisorHint() + '</span>';
+}
+
+function applyThemeClass(){
+  try {
+    document.body.classList.remove('theme-aurora','theme-sunset','theme-forest');
+    if (S && S.theme && S.theme !== 'default') document.body.classList.add('theme-' + S.theme);
+  } catch(e){}
+}
+
+/* ---- Престиж: новая эпоха ---- */
+const _endBase = end;
+end = function(win, reason){
+  _endBase(win, reason);
+  if (win) victoryExtras();
+};
+
+function victoryExtras(){
+  try {
+    const modal = document.querySelector('#overlay .modal');
+    if (!modal) return;
+    let b = modal.querySelector('.era-btn');
+    if (!b){
+      b = document.createElement('button');
+      b.className = 'era-btn';
+      b.style.marginLeft = '8px';
+      b.style.background = 'linear-gradient(135deg,#ffd166,#ffb347)';
+      b.onclick = startNewEra;
+      modal.appendChild(b);
+    }
+    b.textContent = '🌟 Новая эпоха (+' + (((S.prestige||0)+1)*10) + '%)';
+  } catch(e){}
+}
+
+function startNewEra(){
+  if (!S) return;
+  const carry = {
+    gems: S.gems||0,
+    themes: Object.assign({default:true}, S.themes||{}),
+    badge: !!S.badge,
+    ach: Object.assign({}, S.ach||{}),
+    prestige: (S.prestige||0) + 1,
+    theme: S.theme||'default',
+    streak: S.streak||0,
+    lastVisit: S.lastVisit,
+    level: S.level||1,
+    xp: S.xp||0,
+  };
+  init();
+  S.gems = carry.gems; S.themes = carry.themes; S.badge = carry.badge;
+  S.ach = carry.ach; S.prestige = carry.prestige; S.theme = carry.theme;
+  S.streak = carry.streak; S.lastVisit = carry.lastVisit;
+  S.level = carry.level; S.xp = carry.xp;
+  S.paused = true; syncPauseBtn();
+  lastAutoSaveDay = 0;
+  const ov = document.getElementById('overlay'); if (ov) ov.classList.add('hidden');
+  applyThemeClass();
+  computeTravel(); renderBoard(); updateUI();
+  toast('🌟 Новая эпоха! Постоянный бонус +' + (S.prestige*10) + '% ко всему','gem');
+  saveGameSilent();
+}
+
+/* ---- Бонус эпох к производству ---- */
+const _multPrestigeBase = mult;
+mult = function(kind){
+  let m = _multPrestigeBase(kind);
+  if (S && S.prestige) m *= (1 + S.prestige*0.10);
+  return m;
+};
+
+/* ---- Обновление прогресс-бара и советника ---- */
+function updateEngagementUI(){
+  try {
+    const lv = document.getElementById('st-level');
+    if (lv) lv.textContent = S.level||1;
+    const num = document.getElementById('lvlNum');
+    if (num) num.textContent = S.level||1;
+    const need = levelNeed(S.level||1);
+    const xpEl = document.getElementById('lvlXp');
+    if (xpEl) xpEl.textContent = Math.floor(S.xp||0) + ' / ' + need + ' XP';
+    const fill = document.getElementById('lvlFill');
+    if (fill) fill.style.width = Math.max(2, Math.min(100, Math.round((S.xp||0)/need*100))) + '%';
+    const st = document.getElementById('lvlStreak');
+    if (st) st.textContent = '🔥' + (S.streak||0) + (S.prestige ? ' · 🌟' + S.prestige : '');
+    const h1 = document.querySelector('h1');
+    if (h1) h1.textContent = S.badge ? '🏙️ МОЙ ГОРОД 🌟' : '🏙️ МОЙ ГОРОД';
+    renderQuests();
+    renderAdvisor();
+    renderOffer();
+  } catch(e){}
+}
+
+function openShopTab(){
+  const t = document.querySelector('.tabbtn[data-tab="shop"]');
+  if (t) t.click();
+}
+
+function renderOffer(){
+  const el = document.getElementById('offer');
+  if (!el) return;
+  const today = new Date().toISOString().slice(0,10);
+  let text = '', label = '', action = null;
+  if (S.daily !== today){ text = '🎁 Бонус дня ещё не получен'; label = 'Забрать'; action = dailyBonus; }
+  else if ((S.resources.food||0) < 20){ text = '🌾 Еды мало — город на грани голода'; label = 'В магазин'; action = openShopTab; }
+  else if (!S.patron && (S.day||1) >= 6){ text = '👑 Покровитель: +25% производства навсегда'; label = 'В магазин'; action = openShopTab; }
+  if (!text){ el.classList.remove('show'); el.innerHTML = ''; return; }
+  el.classList.add('show');
+  el.innerHTML = '<b>' + text + '</b>';
+  const b = document.createElement('button');
+  b.textContent = label;
+  b.onclick = action;
+  el.appendChild(b);
+}
+
+function initEngagement(){
+  ensureDaily();
+  applyThemeClass();
+  try {
+    document.querySelectorAll('.tabbtn[data-tab="quests"]').forEach(b=>b.addEventListener('click', renderQuests));
+    document.querySelectorAll('.tabbtn[data-tab="ach"]').forEach(b=>b.addEventListener('click', renderAchievements));
+  } catch(e){}
+  updateEngagementUI();
+}
+
+/* ================== УЛУЧШЕНИЯ ЗДАНИЙ, ДОСТИЖЕНИЯ, СОБЫТИЯ ================== */
+
+const MAX_BLEVEL = 5;
+
+function upgradeCost(type, lvl){
+  const base = (BUILDINGS[type] && BUILDINGS[type].cost) ? BUILDINGS[type].cost : {};
+  const out = {};
+  let any = false;
+  for (const k in base){
+    if (base[k] > 0){ out[k] = Math.max(1, Math.round(base[k] * (0.6 + lvl*0.7))); any = true; }
+  }
+  if (!any) out.wood = 10 + lvl*8;
+  return out;
+}
+
+function syncModeButtons(){
+  const dem = document.getElementById('btn-demolish');
+  const up = document.getElementById('btn-upgrade');
+  if (dem){
+    dem.classList.toggle('on', S.mode==='demolish');
+    dem.textContent = S.mode==='demolish' ? '🔨 Снос ВКЛ' : '🔨 Снос';
+  }
+  if (up){
+    up.classList.toggle('on', S.mode==='upgrade');
+    up.textContent = S.mode==='upgrade' ? '⬆ Улучшение ВКЛ' : '⬆ Улучшение';
+  }
+}
+
+function setBuildMode(mode){
+  if (!S) return;
+  S.mode = (S.mode === mode) ? 'build' : mode;
+  syncModeButtons();
+  if (S.mode==='demolish') addLog('🔨 Режим сноса: кликните по постройке (вернётся 50%)','evt');
+  if (S.mode==='upgrade') addLog('⬆ Режим улучшения: кликните по зданию','evt');
+}
+
+function upgradeAt(r,c){
+  if (!S) return;
+  if (r<0||r>=ROWS||c<0||c>=COLS) return;
+  const b = S.land[r][c];
+  if (!b){ toast('Здесь нет постройки','bad'); haptic('err'); return; }
+  const info = BUILDINGS[b.type];
+  if (!info){ return; }
+  const lvl = b.level || 1;
+  if (lvl >= MAX_BLEVEL){ toast('Максимальный уровень (5)','bad'); haptic('err'); return; }
+  const cost = upgradeCost(b.type, lvl);
+  if (!checkAfford(cost)){ toast('Не хватает: ' + costLine(cost),'bad'); haptic('err'); return; }
+  pay(cost);
+  b.level = lvl + 1;
+  toast('⬆ ' + info.name + ' → ур. ' + b.level + ' (+25% к работе)','good');
+  haptic('ok');
+  addXP(6); questEvent('built');
+  fxBurst(r, c, [255,209,102]);
+  renderBoard(); updateUI(); saveGameSilent();
+}
+
+/* ---- Достижения ---- */
+function renderAchievements(){
+  const p = document.getElementById('achPanel');
+  const pane = document.getElementById('pane-ach');
+  if (!p || !pane || !pane.classList.contains('active')) return;
+  p.innerHTML = '';
+  const head = document.createElement('div');
+  head.className = 'bar-title'; head.style.width = '100%';
+  const done = ACHIEVEMENTS.filter(a=>S.ach && S.ach[a.id]).length;
+  head.innerHTML = `<span>🏆 Достижения: <b>${done}/${ACHIEVEMENTS.length}</b></span>`;
+  p.appendChild(head);
+  for (const a of ACHIEVEMENTS){
+    const isDone = !!(S.ach && S.ach[a.id]);
+    const el = document.createElement('div');
+    el.className = 'ach' + (isDone ? ' done' : '');
+    el.innerHTML = `<div class="ai">${isDone ? '✅' : '🔒'}</div>
+      <div><div class="an">${a.title}</div><div class="ad">${a.desc || ''}</div></div>
+      <div class="ar">${isDone ? 'получено' : '+' + a.reward + ' 💎'}</div>`;
+    p.appendChild(el);
+  }
+}
+
+/* ---- Случайные события с выбором ---- */
+const EVENT_POOL = [
+  { ico:'🐫', title:'Караван торговцев', text:'Предлагают 120 еды за 20 золота.',
+    options:[
+      { label:'Купить (−20 🪙)', apply(){ if ((S.resources.gold||0) < 20) return false; S.resources.gold -= 20; addRes('food', 120); return true; } },
+      { label:'Отказаться', apply(){ return true; } },
+    ] },
+  { ico:'👪', title:'Переселенцы', text:'Три семьи просят убежища. Останутся, если хватит жилья.',
+    options:[
+      { label:'Принять', apply(){ const cap = S.maxPop||0; const n = Math.min(3, Math.max(0, cap - S.citizens.length)); for(let i=0;i<n;i++) S.citizens.push(makeCitizen()); syncPop(); if (n===0) toast('Жилья нет — семьи ушли','bad'); else toast('Принято жителей: ' + n,'good'); return true; } },
+      { label:'Отказать', apply(){ S.happiness = Math.max(0, S.happiness - 2); return true; } },
+    ] },
+  { ico:'🔥', title:'Пожар в амбаре', text:'Огонь подбирается к запасам.',
+    options:[
+      { label:'Тушить (−30 🪵, −10 🪨)', apply(){ if ((S.resources.wood||0) < 30 || (S.resources.stone||0) < 10) return false; S.resources.wood -= 30; S.resources.stone -= 10; return true; } },
+      { label:'Спасать людей', apply(){ addRes('food', -60); return true; } },
+    ] },
+  { ico:'⚔️', title:'Наёмники', text:'Отряд охраны за 25 золота: +10 к обороне.',
+    options:[
+      { label:'Нанять (−25 🪙)', apply(){ if ((S.resources.gold||0) < 25) return false; S.resources.gold -= 25; S.mercs = (S.mercs||0) + 10; return true; } },
+      { label:'Отказаться', apply(){ return true; } },
+    ] },
+  { ico:'🎪', title:'Ярмарка', text:'Купцы просят место: +40 золота, но −20 еды.',
+    options:[
+      { label:'Разрешить', apply(){ addRes('gold', 40); addRes('food', -20); return true; } },
+      { label:'Запретить', apply(){ S.happiness = Math.max(0, S.happiness - 1); return true; } },
+    ] },
+];
+
+let eventOpen = false;
+
+function maybeRandomChoice(){
+  if (!S || S.over || eventOpen) return;
+  if (!S.nextEventDay) S.nextEventDay = 9 + Math.floor(Math.random()*4);
+  if (S.day < S.nextEventDay) return;
+  S.nextEventDay = S.day + 9 + Math.floor(Math.random()*6);
+  const ev = EVENT_POOL[Math.floor(Math.random()*EVENT_POOL.length)];
+  showEvent(ev);
+}
+
+function showEvent(ev){
+  try {
+    eventOpen = true;
+    const box = document.getElementById('eventBox');
+    if (!box) return;
+    document.getElementById('evIcon').textContent = ev.ico;
+    document.getElementById('evTitle').textContent = ev.title;
+    document.getElementById('evText').textContent = ev.text;
+    const btns = document.getElementById('evButtons');
+    btns.innerHTML = '';
+    ev.options.forEach((opt, idx)=>{
+      const b = document.createElement('button');
+      b.textContent = opt.label;
+      if (idx === 0) b.className = 'grey';
+      b.onclick = ()=>{
+        let ok = true;
+        try { ok = opt.apply(); } catch(e){ ok = false; }
+        if (ok === false){ toast('Не хватает ресурсов','bad'); return; }
+        box.classList.add('hidden');
+        eventOpen = false;
+        haptic('light');
+        renderBoard(); updateUI(); saveGameSilent();
+      };
+      btns.appendChild(b);
+    });
+    box.classList.remove('hidden');
+  } catch(e){ eventOpen = false; }
+}
+
+/* ---- Бонус наёмников к обороне ---- */
+const _defenseBase = defensePower;
+defensePower = function(){
+  const r = _defenseBase();
+  r.total += (S && S.mercs) ? S.mercs : 0;
+  return r;
+};
+
+/* ---- Достижения обновляются вместе с интерфейсом ---- */
+const _updateEngBase = updateEngagementUI;
+updateEngagementUI = function(){
+  _updateEngBase();
+  try { renderAchievements(); } catch(e){}
+};
+
+/* ---- Выбор здания сбрасывает режим сноса/улучшения ---- */
+const _selectBase = select;
+select = function(type){
+  _selectBase(type);
+  if (S.mode !== 'build'){ S.mode = 'build'; syncModeButtons(); updateUI(); }
+};
+
+/* ================== СЛОЖНОСТЬ И ЭКОНОМИЧЕСКОЕ ДАВЛЕНИЕ ================== */
+
+const DIFF_PRESETS = {
+  calm:   { name:'🌿 Спокойная', desc:'Мягкая экономика, редкие набеги',  prod:1.05, foodUse:0.90, spoil:0,    raid:0.90, birth:1.15, tech:0.95, upkeep:0 },
+  normal: { name:'⚔️ Обычная',   desc:'Сбалансированные вызовы',          prod:0.95, foodUse:1.05, spoil:0.01, raid:1.15, birth:0.90, tech:1.10, upkeep:0.4 },
+  hard:   { name:'🔥 Суровая',   desc:'Жёсткая экономика и сильные враги', prod:0.85, foodUse:1.25, spoil:0.02, raid:1.45, birth:0.70, tech:1.35, upkeep:0.9 },
+};
+
+function diff(){
+  return DIFF_PRESETS[(S && S.difficulty) || 'normal'] || DIFF_PRESETS.normal;
+}
+
+function techCost(k){
+  const t = TECHS[k];
+  if (!t) return 0;
+  return Math.round(t.cost * diff().tech);
+}
+
+function diffShowIntro(){
+  try {
+    if (!S || S.introShown || S.day > 1) return;
+    S.introShown = true;
+    const ov = document.getElementById('overlay');
+    if (!ov) return;
+    ov.classList.remove('hidden');
+    document.getElementById('modal-title').textContent = '🏙️ Выберите сложность';
+    document.getElementById('modal-sub').textContent = 'От неё зависят экономика, набеги и скорость роста города.';
+    const st = document.getElementById('modal-stats');
+    st.innerHTML = '';
+    for (const key in DIFF_PRESETS){
+      const p = DIFF_PRESETS[key];
+      const b = document.createElement('button');
+      b.textContent = p.name;
+      b.style.margin = '4px';
+      b.title = p.desc;
+      b.onclick = ()=>{
+        S.difficulty = key;
+        ov.classList.add('hidden');
+        S.paused = false; syncPauseBtn();
+        toast('Сложность: ' + p.name + ' — ' + p.desc, 'gem');
+        saveGameSilent(); updateUI();
+      };
+      st.appendChild(b);
+    }
+    document.getElementById('modal-goal').textContent = 'Цель: 25+ жителей и 70%+ счастья к 20-му дню.';
+    const btn = document.getElementById('modal-btn');
+    btn.textContent = 'Оставить обычную';
+    btn.onclick = ()=>{ ov.classList.add('hidden'); S.paused=false; syncPauseBtn(); saveGameSilent(); };
+  } catch(e){}
+}
+showIntro = diffShowIntro;
+
+// Ежедневное давление: порча еды, содержание города, щит
+function difficultyTick(){
+  if (!S) return;
+  const d = diff();
+
+  if (d.spoil > 0 && S.resources.food > 1){
+    S.resources.food = Math.max(0, S.resources.food * (1 - d.spoil));
+  }
+
+  if (d.upkeep > 0){
+    let buildings = 0;
+    for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++) if (S.land[r][c]) buildings++;
+    const upkeep = Math.max(0, Math.round(buildings * d.upkeep / 4));
+    if (upkeep > 0){
+      if ((S.resources.gold||0) >= upkeep){
+        S.resources.gold -= upkeep;
+        S.unpaid = 0;
+      } else {
+        S.resources.gold = 0;
+        S.unpaid = (S.unpaid||0) + 1;
+        S.happiness = Math.max(0, S.happiness - 2);
+        if (S.unpaid === 1) toast('⚠️ Нечем платить содержание города: −настроение','bad');
+      }
+    }
+  }
+
+  if (S.shieldDays > 0) S.shieldDays = Math.max(0, S.shieldDays - 1);
+  if (S.patron) S.gems = (S.gems||0) + 2;
+}
+
+/* Производство: сложность и покровитель */
+const _multDiffBase = mult;
+mult = function(kind){
+  let m = _multDiffBase(kind);
+  if (S && ['food','wood','stone','ore','gold','craft'].includes(kind)){
+    m *= diff().prod;
+    if (S.patron) m *= 1.25;
+  }
+  return m;
+};
+
+/* Двойные награды заданий (удобство) */
+const _claimBase = claimQuest;
+claimQuest = function(id){
+  const q = (S.quests||[]).find(x=>x.id===id);
+  const def = q ? questDef(id) : null;
+  const wasClaimed = !!(q && q.claimed);
+  _claimBase(id);
+  if (def && q && q.claimed && !wasClaimed && S.doublequest){
+    grantGems(def.gems);
+    toast('🎯 Двойная награда: +' + def.gems + ' 💎','gem');
+  }
+};
+
+/* ================== ПОЛИРОВКА: ПОДСКАЗКИ И ВСПЫШКИ ================== */
+
+let fxBursts = [];
+
+function fxBurst(r, c, rgb){
+  fxBursts.push({ r, c, t: 0, rgb: rgb || [155,231,255] });
+}
+function fxDrawBursts(){
+  if (!fx) return;
+  for (let i=fxBursts.length-1;i>=0;i--){
+    const b = fxBursts[i];
+    b.t += 0.016;
+    if (b.t > 0.7){ fxBursts.splice(i,1); continue; }
+    const p = b.t/0.7;
+    fx.strokeStyle = 'rgba(' + b.rgb[0] + ',' + b.rgb[1] + ',' + b.rgb[2] + ',' + (1-p).toFixed(3) + ')';
+    fx.lineWidth = 2;
+    fx.beginPath();
+    fx.arc(b.c*CELL + CELL/2, b.r*CELL + CELL/2, 6 + p*20, 0, Math.PI*2);
+    fx.stroke();
+  }
+}
+
+const DEP_NAMES = { forest:'Лес', rock:'Скалы', copper:'Медь', iron:'Железо', silver:'Серебро', gold:'Золото' };
+
+function cellTip(r, c){
+  const b = S.land[r][c];
+  if (b){
+    const info = BUILDINGS[b.type] || {};
+    const work = b.need ? (b.workers > 0 ? 'работает' : 'нет работника') : 'не требует рабочих';
+    let s = '<b>' + (EMO[b.type]||'') + ' ' + (info.name||'') + '</b>';
+    s += '<div class="muted">Уровень ' + (b.level||1) + ' · ' + work + '</div>';
+    if (info.info) s += '<div class="muted">' + info.info + '</div>';
+    return s;
+  }
+  if (S.roads[r][c]) return '<b>🛣 Дорога</b><div class="muted">Ускоряет путь рабочих</div>';
+  const dep = S.deposits[r][c];
+  if (dep){
+    const pct = Math.round((dep.left/dep.max)*100);
+    return '<b>⛏ ' + (DEP_NAMES[dep.type]||'Месторождение') + '</b><div class="muted">Запас: ' + pct + '%</div>';
+  }
+  if (S.water[r][c]) return '<b>💧 Вода</b><div class="muted">Здесь ходят корабли</div>';
+  return '<b>🌱 Свободная земля</b><div class="muted">Плодородие: ' + Math.round(S.fertility[r][c]) + '</div>';
+}
+
+function initPolish(){
+  const tip = document.getElementById('tip');
+  if (!tip || !CV) return;
+  const move = (e)=>{
+    if (!S) return;
+    const rect = CV.getBoundingClientRect();
+    const sx = (e.clientX - rect.left) * (CV.width / rect.width);
+    const sy = (e.clientY - rect.top) * (CV.height / rect.height);
+    const c = Math.floor(sx / CELL), r = Math.floor(sy / CELL);
+    if (r<0||r>=ROWS||c<0||c>=COLS){ tip.classList.add('hidden'); return; }
+    tip.innerHTML = cellTip(r, c);
+    tip.classList.remove('hidden');
+    const pad = 14;
+    let x = e.clientX + pad, y = e.clientY + pad;
+    const bw = tip.offsetWidth, bh = tip.offsetHeight;
+    if (x + bw > window.innerWidth - 8) x = e.clientX - bw - pad;
+    if (y + bh > window.innerHeight - 8) y = e.clientY - bh - pad;
+    tip.style.left = x + 'px';
+    tip.style.top = y + 'px';
+  };
+  CV.addEventListener('pointermove', move);
+  CV.addEventListener('pointerdown', ()=> tip.classList.add('hidden'));
+  CV.addEventListener('pointerleave', ()=> tip.classList.add('hidden'));
+}
+
+// ---------- Старт ----------
+init();
+loadGame();
+S.paused = true;   // игра начинается с паузы
+syncPauseBtn();
+renderBoard();
+updateUI();
+startLoop(BASE_TICK);
+tgInit();          // интеграция с Telegram (если открыто в Telegram)
+initMeta();        // эффекты, магазин, цели, вступление
+initEngagement();  // задания дня, серия, тема, уровень
+initPolish();      // подсказки при наведении на клетки
+</script>
+</body>
+</html>
