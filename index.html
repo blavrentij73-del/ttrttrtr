@@ -506,6 +506,32 @@
   #tutorial { background: #1f3350; color: #e3f1ff; }
   #log { background: #121c2e; color: #c3d1e6; }
   .shop-item, .quest, .ach { background: #26344e; }
+#tut {
+  position:fixed; inset:0; z-index:90; display:flex; align-items:center; justify-content:center;
+  background:rgba(4,10,20,.72); padding:16px;
+}
+#tut.hidden { display:none; }
+#tut .tut-card {
+  width:min(540px, 100%); max-height:86vh; overflow:auto;
+  background:var(--panel); color:var(--text); border-radius:16px;
+  border:1px solid rgba(255,255,255,.12); padding:18px 18px 14px;
+  box-shadow:0 24px 60px rgba(0,0,0,.5);
+}
+#tut .tut-top { display:flex; justify-content:space-between; font-size:12px; color:var(--muted); margin-bottom:10px; }
+#tut .tut-ico { font-size:36px; line-height:1; margin:2px 0 8px; }
+#tut h3 { margin:0 0 8px; font-size:18px; }
+#tut p { margin:0 0 12px; font-size:13.5px; line-height:1.6; color:#dbe7f7; }
+#tut .tut-dots { display:flex; gap:6px; margin:4px 0 14px; }
+#tut .tut-dots i { width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,.22); }
+#tut .tut-dots i.on { background:var(--accent); }
+#tut .tut-btns { display:flex; gap:8px; justify-content:flex-end; align-items:center; flex-wrap:wrap; }
+#tut .tut-btns button { margin:0; }
+#tut .tut-btns .tut-skip { margin-right:auto; background:transparent; border:1px solid transparent; color:var(--muted); box-shadow:none; }
+@media (max-width:720px){ #tut .tut-card{ padding:14px; } #tut h3{ font-size:16px; } #tut p{ font-size:13px; } }
+#boardWrap { overflow: auto; max-height: 72vh; }
+.zoomctl { display:flex; gap:6px; align-items:center; justify-content:flex-end; margin:-4px 0 10px; }
+.zoomctl button { padding:2px 12px; font-size:14px; }
+.zoomctl span { font-size:12px; color:var(--muted); min-width:44px; text-align:center; }
 </style>
 </head>
 <body>
@@ -532,6 +558,7 @@
         <button class="grey" id="btn-pause">⏸ Пауза</button>
         <button class="grey" id="btn-save">💾</button>
         <button class="grey" id="btn-reset" title="Сбросить игру">🔄</button>
+        <button class="grey" id="btn-help" title="Обучение">❓</button>
       </div>
     </header>
 
@@ -539,6 +566,12 @@
       <canvas id="cv" width="900" height="480"></canvas>
       <canvas id="fx" width="900" height="480"></canvas>
       <div id="tip" class="hidden"></div>
+    </div>
+
+    <div class="zoomctl">
+      <button class="grey" id="z-out" title="Уменьшить карту">−</button>
+      <span id="zoom-val">100%</span>
+      <button class="grey" id="z-in" title="Увеличить карту">+</button>
     </div>
 
     <div class="lvlbar" id="lvlBar">
@@ -628,6 +661,21 @@
     </div>
   </div>
 
+  <div id="tut" class="hidden">
+    <div class="tut-card">
+      <div class="tut-top"><span id="tut-stepnum">Шаг 1 из 5</span><span>Обучение</span></div>
+      <div class="tut-ico" id="tut-ico">🎯</div>
+      <h3 id="tut-title"></h3>
+      <p id="tut-text"></p>
+      <div class="tut-dots" id="tut-dots"></div>
+      <div class="tut-btns">
+        <button class="grey tut-skip" id="tut-skip">Пропустить</button>
+        <button class="grey" id="tut-prev">Назад</button>
+        <button id="tut-next">Далее</button>
+      </div>
+    </div>
+  </div>
+
 <script>
 const CV = document.getElementById('cv');
 const ctx = CV.getContext('2d');
@@ -636,6 +684,9 @@ const COLS = 30, ROWS = 16;
 
 // Время идёт медленнее: 1 игровой день = BASE_TICK мс при скорости x1
 const BASE_TICK = 2600;
+
+// Масштаб карты (1 = обычный вид)
+let ZOOM = 1;
 
 const SKILLS = ['farm','craft','mine','fight','trade'];
 const SKILL_NAMES = { farm:'🌾 Земледелие', craft:'⚒ Ремесло', mine:'⛏ Горное', fight:'⚔ Воинское', trade:'💰 Торговое' };
@@ -1583,8 +1634,44 @@ function cellNoise(r,c,k){
   return n - Math.floor(n);
 }
 
+/* ---- Масштаб карты ---- */
+const ZOOM_STEPS = [0.75, 1, 1.25, 1.5, 2];
+function applyZoom(z, skipRender){
+  try {
+    z = Math.max(ZOOM_STEPS[0], Math.min(ZOOM_STEPS[ZOOM_STEPS.length-1], z || 1));
+    ZOOM = z;
+    const w = Math.round(COLS*CELL*z), h = Math.round(ROWS*CELL*z);
+    if (CV){
+      CV.width = w; CV.height = h;
+      CV.style.width = w + 'px'; CV.style.height = h + 'px';
+      CV.style.maxWidth = 'none'; CV.style.minWidth = '0';
+    }
+    if (FXC){
+      FXC.width = w; FXC.height = h;
+      FXC.style.width = w + 'px'; FXC.style.height = h + 'px';
+    }
+    if (S) S.zoom = z;
+    const lbl = document.getElementById('zoom-val');
+    if (lbl) lbl.textContent = Math.round(z*100) + '%';
+    if (!skipRender) renderBoard();
+  } catch(e){}
+}
+function zoomBy(step){
+  const i = ZOOM_STEPS.indexOf(ZOOM);
+  const n = Math.max(0, Math.min(ZOOM_STEPS.length-1, (i<0?1:i) + step));
+  applyZoom(ZOOM_STEPS[n]);
+}
+function initZoom(){
+  const zi = document.getElementById('z-in'), zo = document.getElementById('z-out');
+  if (zi) zi.onclick = ()=>zoomBy(1);
+  if (zo) zo.onclick = ()=>zoomBy(-1);
+  if (CV) CV.addEventListener('wheel', (e)=>{ e.preventDefault(); zoomBy(e.deltaY < 0 ? 1 : -1); }, { passive:false });
+  applyZoom((S && S.zoom) || 1, true);
+}
+
 function renderBoard(){
   const W = COLS*CELL, H = ROWS*CELL;
+  ctx.setTransform(ZOOM, 0, 0, ZOOM, 0, 0);
   ctx.clearRect(0,0,W,H);
   const sea = currentSeason();
 
@@ -1975,7 +2062,7 @@ CV.addEventListener('click',(e)=>{
   const rect=CV.getBoundingClientRect();
   const sx=(e.clientX-rect.left)*(CV.width/rect.width);
   const sy=(e.clientY-rect.top)*(CV.height/rect.height);
-  const r=Math.floor(sy/CELL), c=Math.floor(sx/CELL);
+  const r=Math.floor(sy/ZOOM/CELL), c=Math.floor(sx/ZOOM/CELL);
   if (S.mode==='demolish') demolishAt(r,c);
   else if (S.mode==='upgrade') upgradeAt(r,c);
   else buildAt(r,c);
@@ -2588,7 +2675,8 @@ function fxFrame(ts){
   if (!S) return;
   if (ts - fxLast < 50) return;   // ~20 кадров/с: меньше нагрузки на телефон
   fxLast = ts;
-  const W = FXC.width, H = FXC.height, t = (ts||0)/1000;
+  const W = COLS*CELL, H = ROWS*CELL, t = (ts||0)/1000;
+  if (fx.setTransform) fx.setTransform(ZOOM, 0, 0, ZOOM, 0, 0);
   fx.clearRect(0,0,W,H);
 
   if (!S.paused){
@@ -2660,7 +2748,7 @@ function fxHoverFromEvent(e){
   const rect = CV.getBoundingClientRect();
   const sx = (e.clientX - rect.left) * (CV.width / rect.width);
   const sy = (e.clientY - rect.top) * (CV.height / rect.height);
-  const c = Math.floor(sx / CELL), r = Math.floor(sy / CELL);
+    const c = Math.floor(sx / ZOOM / CELL), r = Math.floor(sy / ZOOM / CELL);
   hoverCell = (r<0||r>=ROWS||c<0||c>=COLS) ? null : { r, c };
 }
 
@@ -3164,6 +3252,7 @@ function diffShowIntro(){
         S.paused = false; syncPauseBtn();
         toast('Сложность: ' + p.name + ' — ' + p.desc, 'gem');
         saveGameSilent(); updateUI();
+        maybeShowTutorial();
       };
       st.appendChild(b);
     }
@@ -3171,12 +3260,69 @@ function diffShowIntro(){
     const btn = document.getElementById('modal-btn');
     btn.textContent = 'Оставить обычную';
     btn.disabled = false;
-    btn.onclick = ()=>{ ov.classList.add('hidden'); S.paused=false; syncPauseBtn(); saveGameSilent(); };
+    btn.onclick = ()=>{ ov.classList.add('hidden'); S.paused=false; syncPauseBtn(); saveGameSilent(); maybeShowTutorial(); };
     const rb = document.getElementById('modal-restart');
     if (rb) rb.style.display = 'none';
   } catch(e){}
 }
 showIntro = diffShowIntro;
+
+/* ================== ОБУЧЕНИЕ ДЛЯ НОВИЧКОВ ================== */
+const TUT_STEPS = [
+  { ico:'🎯', title:'Цель игры', text:'Вырастите город: 25+ жителей и счастье 70%+ к 20-му дню. Время идёт медленно — успевайте планировать. После загрузки игра стоит на паузе: нажмите «Продолжить», когда будете готовы.' },
+  { ico:'🏠', title:'Стройка и ресурсы', text:'Вкладка «Строить»: дом даёт место жителям, ферма — еду, лесопилка — дерево, каменоломня — камень. Каждому зданию нужны работники 🎫, иначе оно не работает.' },
+  { ico:'🎫', title:'Жители и навыки', text:'Во вкладке «Жители» назначайте людей на работу. У каждого навык 1–5: чем выше, тем больше продукции. Дороги 🛣 ускоряют путь до работы — далёкие здания работают хуже.' },
+  { ico:'⛏', title:'Месторождения и снос', text:'Лес, камень, медь, железо, серебро и золото добываются на своих клетках. Запасы истощаются. Снос 🔨 возвращает половину ресурсов — можно перестраиваться.' },
+  { ico:'🔬', title:'Развитие', text:'Исследуйте технологии, выберите бога 🕯 и идеологию 🏛, выполняйте задания дня за самоцветы 💎. Кнопка ❓ вверху вернёт обучение в любой момент.' },
+];
+let tutIdx = 0;
+let tutWasPaused = false;
+function tutRender(){
+  const st = TUT_STEPS[tutIdx]; if (!st) return;
+  document.getElementById('tut-stepnum').textContent = 'Шаг ' + (tutIdx+1) + ' из ' + TUT_STEPS.length;
+  document.getElementById('tut-ico').textContent = st.ico;
+  document.getElementById('tut-title').textContent = st.title;
+  document.getElementById('tut-text').textContent = st.text;
+  const dots = document.getElementById('tut-dots'); dots.innerHTML = '';
+  TUT_STEPS.forEach((_,i)=>{ const d=document.createElement('i'); if(i===tutIdx) d.className='on'; dots.appendChild(d); });
+  document.getElementById('tut-prev').disabled = tutIdx === 0;
+  document.getElementById('tut-next').textContent = tutIdx === TUT_STEPS.length-1 ? 'Начать играть' : 'Далее';
+  document.getElementById('tut-skip').style.visibility = tutIdx === TUT_STEPS.length-1 ? 'hidden' : 'visible';
+}
+function openTutorial(){
+  try {
+    tutWasPaused = !!(S && S.paused);
+    tutIdx = 0;
+    tutRender();
+    document.getElementById('tut').classList.remove('hidden');
+    if (S){ S.paused = true; syncPauseBtn(); }
+    haptic('light');
+  } catch(e){}
+}
+function closeTutorial(){
+  try {
+    document.getElementById('tut').classList.add('hidden');
+    if (S){
+      S.tutorialDone = true;
+      S.paused = tutWasPaused;
+      syncPauseBtn();
+      saveGameSilent();
+    }
+  } catch(e){}
+}
+function maybeShowTutorial(){
+  try { if (S && !S.tutorialDone && (S.day||1) <= 1) openTutorial(); } catch(e){}
+}
+function initTutorial(){
+  const nx = document.getElementById('tut-next');
+  const pv = document.getElementById('tut-prev');
+  const sk = document.getElementById('tut-skip');
+  if (nx) nx.onclick = ()=>{ if (tutIdx >= TUT_STEPS.length-1) closeTutorial(); else { tutIdx++; tutRender(); } };
+  if (pv) pv.onclick = ()=>{ if (tutIdx > 0){ tutIdx--; tutRender(); } };
+  if (sk) sk.onclick = closeTutorial;
+  const hb = document.getElementById('btn-help');
+  if (hb) hb.onclick = openTutorial;
+}
 
 function difficultyTick(){
   if (!S) return;
@@ -3281,7 +3427,7 @@ function initPolish(){
     const rect = CV.getBoundingClientRect();
     const sx = (e.clientX - rect.left) * (CV.width / rect.width);
     const sy = (e.clientY - rect.top) * (CV.height / rect.height);
-    const c = Math.floor(sx / CELL), r = Math.floor(sy / CELL);
+  const c = Math.floor(sx / ZOOM / CELL), r = Math.floor(sy / ZOOM / CELL);
     if (r<0||r>=ROWS||c<0||c>=COLS){ tip.classList.add('hidden'); return; }
     tip.innerHTML = cellTip(r, c);
     tip.classList.remove('hidden');
@@ -3301,6 +3447,7 @@ function initPolish(){
 // ---------- Старт ----------
 init();
 loadGame();
+initZoom();
 S.paused = true;
 syncPauseBtn();
 renderBoard();
@@ -3309,6 +3456,7 @@ startLoop(BASE_TICK);
 tgInit();
 initMeta();
 initEngagement();
+initTutorial();    // обучение для новичков
 initPolish();
 </script>
 </body>
