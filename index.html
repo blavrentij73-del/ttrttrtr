@@ -531,6 +531,7 @@
         <button class="grey" id="btn-speed">▶x1</button>
         <button class="grey" id="btn-pause">⏸ Пауза</button>
         <button class="grey" id="btn-save">💾</button>
+        <button class="grey" id="btn-reset" title="Сбросить игру">🔄</button>
       </div>
     </header>
 
@@ -2054,6 +2055,7 @@ function syncPauseBtn(){
 }
 
 function saveGame(){
+  if (window.__resetting) return;
   let str;
   try { str = JSON.stringify(S); } catch(e){ return; }
   try { localStorage.setItem(SAVE_KEY, str); } catch(e){}
@@ -2066,6 +2068,29 @@ function saveGame(){
   haptic('ok');
 }
 document.getElementById('btn-save').onclick=()=>saveGame();
+
+// Полный сброс: чистит сохранение в браузере и облако Telegram
+function resetGame(){
+  window.__resetting = true;
+  try { localStorage.removeItem(SAVE_KEY); } catch(e){}
+  let done = false;
+  const go = ()=>{ if (done) return; done = true; location.reload(); };
+  try { if (TG && TG.CloudStorage) TG.CloudStorage.removeItem('citySave', go); } catch(e){}
+  setTimeout(go, 900);
+}
+let resetArmedAt = 0;
+const btnReset = document.getElementById('btn-reset');
+if (btnReset){
+  btnReset.onclick = ()=>{
+    if (Date.now() - resetArmedAt > 3000){
+      resetArmedAt = Date.now();
+      btnReset.textContent = '⚠️ Точно?';
+      setTimeout(()=>{ if (Date.now() - resetArmedAt >= 3000) btnReset.textContent = '🔄'; }, 3200);
+      return;
+    }
+    resetGame();
+  };
+}
 
 function normalizeLoaded(){
   if(!S.fertility) S.fertility=genFertility();
@@ -2517,6 +2542,7 @@ function checkAchievements(){
 
 let lastAutoSaveDay = 0;
 function saveGameSilent(){
+  if (window.__resetting) return;
   try {
     const str = JSON.stringify(S);
     localStorage.setItem(SAVE_KEY, str);
