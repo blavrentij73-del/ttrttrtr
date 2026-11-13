@@ -459,6 +459,54 @@
   #tip.hidden { display: none; }
   #tip b { color: var(--gold); }
   #tip .muted { color: var(--muted); font-size: 11px; margin-top: 2px; }
+
+  /* ===== ИСПРАВЛЕНИЕ: непрозрачные кнопки и читаемый текст ===== */
+  :root { --muted: #b4c4dc; --text: #f2f7ff; }
+
+  .tabbtn {
+    background: #2a3a56;
+    color: #dce8fa;
+    border: 1px solid rgba(255,255,255,.14);
+  }
+  .tabbtn:hover { background: #34476a; color: #fff; }
+  .tabbtn.active {
+    background: linear-gradient(135deg, #5ac8fa, #7c9cff);
+    color: #071120;
+    border-color: transparent;
+  }
+  #btn-demolish.on { background: linear-gradient(135deg, #ff7a7a, #ff4d4d); color: #fff; }
+  #btn-upgrade.on { background: linear-gradient(135deg, #9be7ff, #5ac8fa); color: #04121f; }
+
+  button.grey {
+    background: #2f4166;
+    color: #f2f7ff;
+    border: 1px solid rgba(255,255,255,.16);
+  }
+
+  .card {
+    background: #26344e;
+    border: 1px solid rgba(255,255,255,.14);
+  }
+  .card .name { color: #fff; }
+  .card .cost, .card .desc { color: #c3d1e6; }
+  .card.dis { opacity: .75; }
+  .card.dis .name, .card.dis .desc { color: #a9b8cf; }
+
+  .chip {
+    background: #2a3a56;
+    color: #dce8fa;
+    border: 1px solid rgba(255,255,255,.14);
+  }
+  .chip.active {
+    background: linear-gradient(135deg, #5ac8fa, #7c9cff);
+    color: #071120;
+  }
+
+  .stat { background: #2a3a56; border-color: rgba(255,255,255,.14); }
+  .gems-pill { background: #3b3466; }
+  #tutorial { background: #1f3350; color: #e3f1ff; }
+  #log { background: #121c2e; color: #c3d1e6; }
+  .shop-item, .quest, .ach { background: #26344e; }
 </style>
 </head>
 <body>
@@ -606,18 +654,11 @@ function haptic(kind){
   } catch(e){}
 }
 
+// ИСПРАВЛЕНО: тема Telegram больше не перекрашивает интерфейс
+// (раньше она подменяла --accent, --panel, --panel2, --muted, --text,
+// из-за чего кнопки становились прозрачными, а текст тусклым).
 function applyTgTheme(){
-  if (!TG || !TG.themeParams) return;
-  const p = TG.themeParams, root = document.documentElement.style;
-  const set = (v, val) => { if (val) root.setProperty(v, '#' + val); };
-  set('--bg', p.bg_color);
-  set('--panel', p.secondary_bg_color || p.bg_color);
-  set('--panel2', p.section_bg_color || p.secondary_bg_color || p.bg_color);
-  set('--text', p.text_color);
-  set('--muted', p.hint_color || p.subtitle_text_color);
-  set('--accent', p.button_color || p.link_color);
-  set('--bad', p.destructive_text_color);
-  document.body.classList.toggle('tg-light', TG.colorScheme === 'light');
+  try { document.body.classList.remove('tg-light'); } catch(e){}
 }
 
 function tgUpdateMainButton(){
@@ -1827,7 +1868,8 @@ function seasonNote(sea){
   if(m.wood!==1) parts.push('др x'+m.wood);
   if(m.stone!==1) parts.push('кам x'+m.stone);
   const nex=nextSeason();
-  return '→ '+nex.emo+' '+nex.name+' че/ '+(parts.length?parts.join(', '):'обычный сезон');
+  // ИСПРАВЛЕНО: вместо мусорного « че/ » — понятный разделитель
+  return '→ '+nex.emo+' '+nex.name+' · '+(parts.length?parts.join(', '):'обычный сезон');
 }
 
 function costLine(cost){
