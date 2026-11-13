@@ -175,7 +175,6 @@
     .modal h2 { font-size: 21px; }
   }
 
-  /* На узких экранах с мышью карта масштабируется без горизонтальной прокрутки */
   @media (max-width: 720px) and (pointer: fine) {
     canvas { min-width: 0; }
   }
@@ -654,9 +653,6 @@ function haptic(kind){
   } catch(e){}
 }
 
-// ИСПРАВЛЕНО: тема Telegram больше не перекрашивает интерфейс
-// (раньше она подменяла --accent, --panel, --panel2, --muted, --text,
-// из-за чего кнопки становились прозрачными, а текст тусклым).
 function applyTgTheme(){
   try { document.body.classList.remove('tg-light'); } catch(e){}
 }
@@ -680,6 +676,7 @@ function tgInit(){
         if (!S) return;
         S.paused = !S.paused;
         syncPauseBtn();
+        updateUI();
         haptic('light');
       });
       tgUpdateMainButton();
@@ -695,7 +692,7 @@ function tgInit(){
 // ---------- Состояние ----------
 let S = null;
 
-function rndSkill(){ return 1 + Math.floor(Math.random()*3); } // 1..3 на старте
+function rndSkill(){ return 1 + Math.floor(Math.random()*3); }
 let CIT_ID = 1;
 function makeCitizen(age){
   return {
@@ -724,34 +721,33 @@ function newState() {
     deposits: deposits,
     roads: Array.from({length: ROWS}, () => Array(COLS).fill(false)),
     techs: {},
-    god: null,            // выбранный бог
-    faith: 0,             // накопленная вера
-    blessing: null,       // активное благословение
+    god: null,
+    faith: 0,
+    blessing: null,
     blessingDays: 0,
-    ideology: null,       // выбранная идеология
-    mode: 'build',        // build | demolish
-    gems: 0,              // премиальная валюта (самоцветы)
-    premium: false,       // премиум-мэр (+10% ко всему)
-    boosts: {},           // активные ускорения
-    daily: null,          // дата последнего бонуса дня
-    ach: {},              // полученные достижения
-    theme: 'default',     // купленная тема оформления
-    xp: 0, level: 1,      // опыт и уровень города
-    qDate: null, quests: [], qStats: {},   // ежедневные задания
-    streak: 0, lastVisit: null,            // серия входов
-    themes: { default:true },              // купленные темы
-    badge: false,                          // бейдж мецената
-    prestige: 0,                           // число «новых эпох»
-    difficulty: 'normal',                  // calm | normal | hard
-    patron: false,                         // покровитель (+25% производства)
-    shieldDays: 0,                         // защита от набегов
-    doublequest: false,                    // двойные награды заданий
-    unpaid: 0,                             // дней без оплаты содержания
+    ideology: null,
+    mode: 'build',
+    gems: 0,
+    premium: false,
+    boosts: {},
+    daily: null,
+    ach: {},
+    theme: 'default',
+    xp: 0, level: 1,
+    qDate: null, quests: [], qStats: {},
+    streak: 0, lastVisit: null,
+    themes: { default:true },
+    badge: false,
+    prestige: 0,
+    difficulty: 'normal',
+    patron: false,
+    shieldDays: 0,
+    doublequest: false,
+    unpaid: 0,
     over: false, paused: false, speed: 1, msg: [],
   };
 }
 
-// Плодородные клетки: несколько случайных "пятен" плодородия
 function genFertility() {
   const f = Array.from({length: ROWS}, () => Array(COLS).fill(90));
   const blobs = 5 + Math.floor(Math.random()*3);
@@ -767,18 +763,14 @@ function genFertility() {
   return f;
 }
 
-// Водная карта: 0 = суша, 1 = пресное озеро, 2 = солёное море
-// Солёное море — узкая полоса у правого края, пресные озёра — несколько блобов
 function genWater() {
   const w = Array.from({length: ROWS}, () => Array(COLS).fill(0));
-  // солёное море: правые 3 колонки + немного заливов
   const seaWidth = 3;
   for(let r=0;r<ROWS;r++){
     for(let c=Math.max(0,COLS-seaWidth);c<COLS;c++){
       w[r][c] = 2;
     }
   }
-  // пара случайных заливов моря вглубь
   const inlets = 2;
   for(let i=0;i<inlets;i++){
     const r = Math.floor(Math.random()*ROWS);
@@ -786,7 +778,6 @@ function genWater() {
     w[r][c] = 2;
     if (Math.random()<0.6 && c>0) w[Math.min(ROWS-1,r+ (Math.random()<0.5?-1:1))][c-1]=2;
   }
-  // пресные озёра: 3-5 блобов в водной зоне
   const lakes = 3 + Math.floor(Math.random()*3);
   for(let i=0;i<lakes;i++){
     const cr = 2 + Math.floor(Math.random()*(ROWS-4)), cc = 2 + Math.floor(Math.random()*(COLS-8));
@@ -798,19 +789,16 @@ function genWater() {
   return w;
 }
 
-// Запас рыбы в каждом водном блобе: значение на клетку
 function genFishStock(water) {
   const fs = Array.from({length: ROWS}, () => Array(COLS).fill(0));
   for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
     const t = water[r][c];
-    if (t===1) fs[r][c] = 40 + Math.floor(Math.random()*80);   // озёра
-    else if (t===2) fs[r][c] = 20 + Math.floor(Math.random()*40); // море меньше
+    if (t===1) fs[r][c] = 40 + Math.floor(Math.random()*80);
+    else if (t===2) fs[r][c] = 20 + Math.floor(Math.random()*40);
   }
   return fs;
 }
 
-// Месторождения: разные типы руд и ресурсов
-// forest лес, rock камень, copper медь, iron железо, silver серебро, gold золото
 function genDeposits(water) {
   const d = Array.from({length: ROWS}, () => Array(COLS).fill(null));
   const groups = [
@@ -836,37 +824,31 @@ function genDeposits(water) {
   return d;
 }
 
-// Ресурсы: иконки и названия
 const RES_META = {
   food:{i:'🌾',n:'Еда'}, wood:{i:'🪵',n:'Дерево'}, stone:{i:'🪨',n:'Камень'},
   gold:{i:'🪙',n:'Золото'}, fish:{i:'🐟',n:'Рыба'}, ore:{i:'⛏',n:'Руда'},
   wool:{i:'🧶',n:'Шерсть'}, cloth:{i:'🧵',n:'Ткань'}, tools:{i:'🔧',n:'Инструменты'},
 };
 
-// Категории построек
 const CATS = { food:'🌾 Еда', res:'⛏ Ресурсы', craft:'⚒ Ремёсла', city:'🏠 Город', def:'🛡 Оборона', infra:'🧱 Инфраструктура' };
 
 const BUILDINGS = {
-  // --- Еда и скотоводство ---
   farm:     { name:'Ферма', cat:'food', skill:'farm', cost:{wood:10}, desc:'+8 еды/день. Лучше на плодородной земле', info:'🎫 1 · земледелие', workers:1 },
   pasture:  { name:'Пастбище', cat:'food', skill:'farm', cost:{wood:15,stone:5}, desc:'Скотоводство: +6 еды и +2 шерсти/день', info:'🎫 1 · нужно «Скотоводство»', workers:1, unlock:'husbandry', lvl:2 },
   hunter:   { name:'Домик охотника', cat:'food', skill:'fight', cost:{food:10,wood:15}, desc:'+4 еды, отгоняет диких зверей', info:'🎫 1 · охота', workers:1 },
   fishboat: { name:'Рыбацкая лодка', cat:'food', skill:'farm', cost:{wood:15,stone:5}, desc:'Ловит рыбу. Ставится на воду', info:'🎫 1 · рыбалка', workers:1, onWater:true, water:'both' },
 
-  // --- Ресурсы ---
   lumber:   { name:'Лесопилка', cat:'res', skill:'mine', cost:{food:10,stone:5}, desc:'+6 дерева/день', info:'🎫 1 · лесозаготовка', workers:1 },
   stone:    { name:'Шахта', cat:'res', skill:'mine', cost:{food:10,wood:10}, desc:'+4 камня/день. На скале x1.8', info:'🎫 1 · камнедобыча', workers:1 },
   mine:     { name:'Рудник', cat:'res', skill:'mine', cost:{food:15,wood:20,stone:15}, desc:'Добывает руду из жилы: медь, железо, серебро, золото', info:'🎫 1 · горное дело', workers:1, lvl:2 },
   goldmine: { name:'Золотая шахта', cat:'res', skill:'mine', cost:{food:15,wood:20,stone:15}, desc:'+2 золота/день. На золотой жиле x2', info:'🎫 1 · золотодобыча', workers:1 },
 
-  // --- Ремёсла ---
   smithy:   { name:'Кузница', cat:'craft', skill:'craft', cost:{wood:25,stone:20,gold:10}, desc:'Переплавляет руду в инструменты', info:'🎫 1 · нужно «Кузнечное дело»', workers:1, unlock:'smithing', lvl:3 },
   weaver:   { name:'Ткацкая мастерская', cat:'craft', skill:'craft', cost:{wood:25,stone:5,gold:5}, desc:'Ткёт ткань из шерсти', info:'🎫 1 · нужно «Ткачество»', workers:1, unlock:'weaving', lvl:3 },
   brewery:  { name:'Пивоварня', cat:'craft', skill:'craft', cost:{wood:20,stone:10,gold:5}, desc:'Эль: +золото и +настроение', info:'🎫 1 · нужно «Пивоварение»', workers:1, unlock:'brewing', lvl:4 },
   market:   { name:'Рынок', cat:'craft', skill:'trade', cost:{food:20,wood:15,stone:10,gold:20}, desc:'+3 золота/день', info:'🎫 1 · торговля', workers:1 },
   merchant: { name:'Торговый корабль', cat:'craft', skill:'trade', cost:{wood:30,stone:20,gold:30}, desc:'+6 рыбы и +2 золота/день. Только на море', info:'🎫 1 · морская торговля', workers:1, onWater:true, water:'sea' },
 
-  // --- Город ---
   house:    { name:'Дом', cat:'city', cost:{wood:20,stone:10}, desc:'+3 жилья', info:'Жильё: +3' },
   shack:    { name:'Лачуга', cat:'city', cost:{wood:8}, desc:'+2 жилья, счастье -5', info:'Жильё: +2' },
   park:     { name:'Парк', cat:'city', cost:{wood:15,stone:5,gold:5}, desc:'+10 настроения', info:'Счастье: +10' },
@@ -875,10 +857,8 @@ const BUILDINGS = {
   barn:     { name:'Амбар', cat:'city', cost:{food:10,wood:25,stone:10}, desc:'+100 лимита еды', info:'Хранение еды' },
   store:    { name:'Склад', cat:'city', cost:{food:10,wood:15,stone:20}, desc:'+80 лимита ресурсов', info:'Хранение' },
 
-  // --- Инфраструктура ---
   road:     { name:'Дорога', cat:'infra', cost:{stone:2}, desc:'Ускоряет путь рабочих к домам', info:'Скорость доставки' },
 
-  // --- Оборона ---
   palisade: { name:'Частокол', cat:'def', cost:{wood:12}, desc:'Деревянная защита', info:'Оборона: 4' },
   wall:     { name:'Каменная стена', cat:'def', cost:{wood:10,stone:25}, desc:'Прочная стена', info:'Оборона: 12' },
   moat:     { name:'Ров', cat:'def', cost:{stone:5}, desc:'Замедляет нападающих', info:'Оборона: 3' },
@@ -889,12 +869,9 @@ const EMO = {farm:'🌾',pasture:'🐄',hunter:'🏹',fishboat:'🛶',lumber:'�
   smithy:'🔥',weaver:'🧵',brewery:'🍺',market:'🏪',merchant:'⛵',house:'🏠',shack:'🛖',park:'🌳',healer:'💉',
   temple:'⛪',barn:'🏚',store:'🏗',road:'🛣',palisade:'🚧',wall:'🧱',moat:'🕳',guard:'🗼',tower:'🏰'};
 
-// Здания, требующие рабочих:
 function needsWorkers(b){ return !!(b && b.workers); }
 
-// ---------- Технологии (продвинутое дерево) ----------
 const TECHS = {
-  // базовые
   irrigation:  { name:'Орошение',        req:null,          cost:30,  tier:1, desc:'Фермы +30% урожая' },
   metallurgy:  { name:'Металлургия',     req:null,          cost:35,  tier:1, desc:'Шахты +50% камня, рудник +25%' },
   carpentry:   { name:'Плотницкое дело', req:null,          cost:25,  tier:1, desc:'Лесопилки +40% дерева' },
@@ -902,7 +879,6 @@ const TECHS = {
   weaving:     { name:'Ткачество',       req:null,          cost:45,  tier:1, desc:'Открывает ткацкую; ткань +50%' },
   brewing:     { name:'Пивоварение',     req:null,          cost:40,  tier:1, desc:'Открывает пивоварню; эль выгоднее' },
   roads:       { name:'Дорожное дело',   req:null,          cost:35,  tier:1, desc:'Дороги дешевле, скорость +25%' },
-  // второй уровень
   rotation:    { name:'Севооборот',      req:'irrigation',  cost:60,  tier:2, desc:'Фермы ещё +40%' },
   smithing:    { name:'Кузнечное дело',  req:'metallurgy',  cost:65,  tier:2, desc:'Открывает кузницу; инструменты' },
   construction:{ name:'Строительство',   req:'carpentry',   cost:60,  tier:2, desc:'Лимиты хранения +50%' },
@@ -919,7 +895,6 @@ const TECHS = {
   education:   { name:'Образование',     req:'philosophy',  cost:150, tier:4, desc:'Все навыки +1 при рождении' },
 };
 
-// ---------- Боги ----------
 const GODS = {
   sun:    { name:'Даждьбог', emo:'☀️', domain:'Земледелие', desc:'+20% еды, благословение урожая', buff:{food:1.2} },
   thunder:{ name:'Перун',    emo:'⚡', domain:'Война',      desc:'+20% обороны, благословение силы', buff:{def:1.2} },
@@ -933,7 +908,6 @@ const BLESSINGS = {
   health:  { name:'Здравие',  emo:'💚', cost:35, days:8, desc:'Болезни почти исчезают' },
 };
 
-// ---------- Идеологии ----------
 const IDEOLOGIES = {
   tradition: { name:'Традиции', emo:'🏺', desc:'+15% еды, +5 счастья; −15% золота', buff:{food:1.15, happy:5, gold:0.85} },
   progress:  { name:'Прогресс', emo:'⚙️', desc:'+20% ремёсел и дерева; −5 счастья', buff:{craft:1.2, wood:1.2, happy:-5} },
@@ -941,7 +915,6 @@ const IDEOLOGIES = {
   trade:     { name:'Торговая республика', emo:'⚖️', desc:'+30% золота, +10% счастья; −10% обороны', buff:{gold:1.3, happy:10, def:0.9} },
 };
 
-// ---------- Сезоны ----------
 const SEASONS = [
   { name:'Весна', emo:'🌱', du:4, mult:{food:1.0, wood:1.0, stone:1.0} },
   { name:'Лето',  emo:'☀️', du:4, mult:{food:1.5, wood:1.2, stone:1.0} },
@@ -980,13 +953,11 @@ function techCraftBonus(){ return hasTech('guilds') ? 1.15 : 1; }
 function storageMult(){ return hasTech('construction') ? 1.5 : 1; }
 function goldMult(){ return hasTech('trade') ? 2 : 1; }
 
-// ---- Религия / идеология / баффы ----
 function godBuff(){ return (S.god && GODS[S.god]) ? GODS[S.god].buff : {}; }
 function ideologyBuff(){ return (S.ideology && IDEOLOGIES[S.ideology]) ? IDEOLOGIES[S.ideology].buff : {}; }
 function blessActive(name){
   return S.blessing===name && S.blessingDays>0;
 }
-// Итоговый множитель по категории: tech*food, ideology, god, blessing
 function mult(kind){
   let m = 1;
   const g = godBuff(), ideo = ideologyBuff();
@@ -1021,7 +992,6 @@ function mult(kind){
 }
 function ideologyHappy(){ const b=ideologyBuff(); return b.happy||0; }
 
-// Лимиты хранения: базовые + здания * бонус технологий
 function limits(){
   let barns=0, stores=0;
   for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
@@ -1046,16 +1016,14 @@ function limits(){
 
 function init() {
   S = newState();
-  // ставим стартовые постройки на первую свободную сушу (карта случайна)
   const starts = ['farm','farm','lumber','house'];
-  let placed = 0;
   for (const type of starts){
     let done = false;
     for (let r=2; r<ROWS && !done; r++){
       for (let c=2; c<COLS-4 && !done; c++){
         if (S.water[r][c]!==0) continue;
         if (S.land[r][c] || S.roads[r][c]) continue;
-        if (placeBuilding(type, r, c)){ done = true; placed++; }
+        if (placeBuilding(type, r, c)){ done = true; }
       }
     }
   }
@@ -1069,12 +1037,10 @@ function placeBuilding(type, r, c) {
   if (S.land[r][c] || (type!=='road' && S.roads[r][c])) return false;
   const wet = S.water[r][c];
   if (b.onWater) {
-    // только на воде нужного типа
     if (wet===0) return false;
     if (b.water==='sea' && wet!==2) return false;
     if (b.water==='lake' && wet!==1) return false;
   } else {
-    // сухопутные постройки нельзя на воду
     if (wet!==0) return false;
   }
   if (!pay(b.cost)) return false;
@@ -1082,8 +1048,8 @@ function placeBuilding(type, r, c) {
   const dep = S.deposits[r][c];
   S.land[r][c] = { type, level: 1, fert: S.fertility[r][c], water: wet,
     dep: dep ? { type: dep.type, max: dep.max, left: dep.left } : null,
-    workers: 0,          // сколько рабочих занято сейчас
-    need: b.workers||0   // сколько нужно
+    workers: 0,
+    need: b.workers||0
   };
   return true;
 }
@@ -1094,7 +1060,6 @@ function pay(cost) {
   return true;
 }
 
-// Снос: возврат половины стоимости
 function refundHalf(cost){
   const lim = limits();
   for (let k in cost){
@@ -1111,31 +1076,30 @@ function demolishAt(r,c){
     S.roads[r][c]=false;
     refundHalf(BUILDINGS.road.cost);
     addLog('🔨 Дорога снесена (+часть камня)','evt');
+    computeTravel();
     renderBoard(); updateUI(); return;
   }
   const b = S.land[r][c];
   if (!b){ addLog('Здесь нечего сносить','bad'); return; }
   const info = BUILDINGS[b.type];
-  S.land[r][c]=null;                      // постройка удалена, месторождение остаётся
+  S.land[r][c]=null;
   refundHalf(info.cost);
   syncPop();
   addLog(`🔨 Снесено: ${info.name} (+50% ресурсов)`,'evt');
   haptic('medium');
+  computeTravel();
   renderBoard(); updateUI();
 }
 
-// ---------- Цикл ----------
 let intervalId=null;
 function startLoop(ms){ if(intervalId) clearInterval(intervalId); intervalId=setInterval(tick,ms); }
 
-// Истощение месторождения: извлекаем и медленно истощаем
 function depleteDep(b, amt){
   if(!b.dep) return;
   b.dep.left = Math.max(0, b.dep.left - (amt||5));
   if (b.dep.left <= 0){ b.dep = null; }
 }
 
-// Бонус добычи от месторождения под постройкой (множитель, если совпадает)
 function depBonus(b){
   if (!b.dep) return 1;
   const m = {
@@ -1149,14 +1113,15 @@ function depBonus(b){
   if (!m || m[b.type]===undefined) return 1;
   return m[b.type];
 }
+
+// ---- ИЗМЕНЕНО ПО ПАТЧУ: computeTravel() в tick() удалён ----
 function tick(){
   if (!S||S.paused||S.over) return;
   const before = currentSeason();
   S.day++;
   const after = currentSeason();
   if (after!==before) addLog(`${after.emo} Наступил сезон: ${after.name}!`, 'evt');
-  computeTravel();       // расстояния от домов (дороги ускоряют)
-  assignWorkers();       // распределяем рабочих по зданиям
+  assignWorkers();
   S.faithGain = 0;
   S.beerDays = 0;
   produce(); consume(); computePopulation(); agingAndDeath(); sickness();
@@ -1173,11 +1138,8 @@ function tick(){
   renderBoard(); updateUI(); checkEnd();
 }
 
-// Вера и благословения
 function faithAndBlessings(){
-  // храмы дают веру
   S.faith = (S.faith||0) + (S.faithGain||0);
-  // активное благословение тикает
   if (S.blessing && S.blessingDays>0){
     S.blessingDays--;
     if (S.blessingDays===0){
@@ -1187,14 +1149,11 @@ function faithAndBlessings(){
   }
 }
 
-// Сколько взрослых жителей доступно для работы (не дети, но больные могут быть слабее)
 function adults(){
   return S.citizens.filter(c=>c.age>=10).length;
 }
-// Функция здоровья прожитых людей
 function healthyCount(){ return S.citizens.filter(c=>!c.sick).length; }
 
-// Распределение рабочих: подбираем жителя с лучшим навыком под здание
 function assignWorkers(){
   for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
     const bb=S.land[r][c]; if(!bb) continue;
@@ -1208,7 +1167,6 @@ function assignWorkers(){
     const skill = BUILDINGS[type] ? BUILDINGS[type].skill : null;
     for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
       const bb=S.land[r][c]; if(!bb||bb.type!==type) continue;
-      // совместимость со старыми сейвами: поле need могло не сохраниться
       if (bb.need===undefined) bb.need = BUILDINGS[bb.type] ? (BUILDINGS[bb.type].workers||0) : 0;
       if (!bb.need) continue;
       let best=null, bestVal=-1;
@@ -1217,7 +1175,7 @@ function assignWorkers(){
         const v = skill ? (cit.skills[skill]||1) : 2;
         if (v>bestVal){ bestVal=v; best=cit; }
       }
-      if (!best) continue;                 // нет свободных людей — здание простаивает
+      if (!best) continue;
       used.add(best.id);
       bb.workers = 1;
       bb.wskill = bestVal;
@@ -1227,7 +1185,6 @@ function assignWorkers(){
   S.freeWorkers = pool.length - used.size;
 }
 
-// Навыки растут у работающих жителей
 function growSkills(){
   const chance = hasTech('philosophy') ? 0.10 : 0.05;
   for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
@@ -1242,7 +1199,6 @@ function growSkills(){
   }
 }
 
-// Скорость перемещения: дистанция от ближайшего дома по дорогам (дороги дешевле)
 function computeTravel(){
   const INF = 1e9;
   const dist = Array.from({length:ROWS}, () => Array(COLS).fill(INF));
@@ -1253,10 +1209,8 @@ function computeTravel(){
     const b=S.land[r][c];
     if (b && (b.type==='house'||b.type==='shack')){ dist[r][c]=0; q.push([r,c]); }
   }
-  // Дейкстра на маленькой сетке
   let head=0;
   while(head<q.length){
-    // выбираем минимум (сетка мала — линейный поиск допустим)
     let bi=head;
     for(let i=head;i<q.length;i++) if (dist[q[i][0]][q[i][1]] < dist[q[bi][0]][q[bi][1]]) bi=i;
     [q[head],q[bi]]=[q[bi],q[head]];
@@ -1265,19 +1219,17 @@ function computeTravel(){
     for (const [dr,dc] of [[1,0],[-1,0],[0,1],[0,-1]]){
       const nr=r+dr, nc=c+dc;
       if (nr<0||nr>=ROWS||nc<0||nc>=COLS) continue;
-      if (S.water[nr][nc]!==0) continue;          // вода непроходима
+      if (S.water[nr][nc]!==0) continue;
       const w = S.roads[nr][nc] ? roadW : plainW;
       const nd = d0 + w;
       if (nd < dist[nr][nc]-1e-9){ dist[nr][nc]=nd; q.push([nr,nc]); }
     }
   }
   S.travel = dist;
-  // Сохраняем коэффициент доступности у каждого рабочего здания
   for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
     const b=S.land[r][c]; if(!b) continue;
     const d = dist[r][c];
     if (d>=INF){ b.travel = 0.5; continue; }
-    // 0..3 — отлично, дальше падает до 0.45
     b.travel = Math.max(0.45, Math.min(1, 1 - Math.max(0, d-3)*0.035));
   }
 }
@@ -1293,17 +1245,15 @@ function produce(){
   for (let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
     const b=S.land[r][c]; if(!b) continue;
     const sm = sea.mult;
-    // зданиям нужны работники
     if (needsWorkersOrig(b) && b.workers<=0) continue;
-    // навык и доступность (дороги) дают 0.45..1.4
-    const skill = b.wskill ? (0.85 + b.wskill*0.08) : 1;   // 1..5 -> 0.93..1.25
+    const skill = b.wskill ? (0.85 + b.wskill*0.08) : 1;
     const access = b.travel!==undefined ? b.travel : 1;
     const eff = skill*access*(1 + (((b.level||1)-1)*0.25));
     switch(b.type){
       case 'farm':{
-        const fMult = 0.5 + (b.fert||90)/400;                    // плодородность
+        const fMult = 0.5 + (b.fert||90)/400;
         let smult = sm.food;
-        if (sea.name==='Зима' && hasTech('greenhouse')) smult = 0.55; // теплицы смягчают зиму
+        if (sea.name==='Зима' && hasTech('greenhouse')) smult = 0.55;
         food += 8 * fMult * smult * mult('food') * eff;
         break;
       }
@@ -1335,7 +1285,7 @@ function produce(){
         else if (t==='iron')   ore += 5 * mult('ore') * db * eff;
         else if (t==='silver'){ ore += 2*mult('ore')*eff; gold += 1.5*mult('gold')*db*eff; }
         else if (t==='gold'){  ore += 1*mult('ore')*eff; gold += 2.5*mult('gold')*db*eff; }
-        else                   ore += 1.5 * mult('ore') * eff; // бедная порода
+        else                   ore += 1.5 * mult('ore') * eff;
         if (b.dep) depleteDep(b, 5*db);
         break;
       }
@@ -1346,7 +1296,6 @@ function produce(){
         break;
       }
       case 'smithy':{
-        // руда -> инструменты
         const need = 2;
         if (S.resources.ore >= need){
           S.resources.ore -= need;
@@ -1401,13 +1350,10 @@ function produce(){
   S.lastProd = {food:Math.round(food), wood:Math.round(wood), stone:Math.round(stone),
                 gold:Math.round(gold), fish:Math.round(fish), ore:Math.round(ore),
                 wool:Math.round(wool), cloth:Math.round(cloth), tools:Math.round(tools)};
-  // опасность от зверей
   S.wildDanger = wildDangerLevel();
 }
-// помощник для быстрой проверки (без создания новых полей)
 function needsWorkersOrig(b){ return BUILDINGS[b.type] && BUILDINGS[b.type].workers>0; }
 
-// Рыба медленно восстанавливается (размножение)
 function regrowFish(){
   for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
     if (S.water[r][c]!==0){
@@ -1433,7 +1379,6 @@ function consume(){
       S.hungryDays=(S.hungryDays||0)+1;
       S.happiness-=8;
       if (S.hungryDays>=5){
-        // голод убивает самых слабых (старых и больных)
         const victims = S.citizens.filter(c=>c.age>=55||c.sick);
         let died=0;
         while (victims.length>0 && died< Math.ceil(S.citizens.length*0.1)){
@@ -1449,7 +1394,6 @@ function consume(){
   }
 }
 
-// Синхронизация поля pop с массивом жителей
 function syncPop(){ S.pop = S.citizens.length; }
 
 function computePopulation(){
@@ -1461,7 +1405,6 @@ function computePopulation(){
     if (b.type==='park') parks++;
   }
   S.maxPop=cap;
-  // целевое настроение и плавный дрейф к нему
   let target = 50;
   target += parks*4;
   target -= huts*4;
@@ -1477,21 +1420,17 @@ function computePopulation(){
   S.happiness = Math.round(S.happiness*10)/10;
 }
 
-// Старение + рождаемость + смерть от старости
 function agingAndDeath(){
-  // старение
   for (const c of S.citizens) c.age++;
-  // рождаемость: каждые несколько дней появляется ребёнок, если есть жильё
   const growthMult = hasTech('guilds') ? 1.5 : 1;
   if (S.citizens.length < S.maxPop && S.citizens.length>0 && Math.random() < 0.12*growthMult*diff().birth){
     S.citizens.push(makeCitizen(0));
     addLog('👶 Родился житель!','good');
     syncPop();
   }
-  // смерть от старости (>70 лет с растущей вероятностью)
   const before = S.citizens.length;
   S.citizens = S.citizens.filter(c=>{
-    if (c.age>=70 && Math.random() < 0.4) return false;     // старость
+    if (c.age>=70 && Math.random() < 0.4) return false;
     if (c.age>=85 && Math.random() < 0.8) return false;
     return true;
   });
@@ -1501,7 +1440,6 @@ function agingAndDeath(){
   }
 }
 
-// Дикая опасность: зависит от отсутствия охотников и стражей
 function wildDangerLevel(){
   let hunters=0, guards=0;
   for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
@@ -1513,7 +1451,6 @@ function wildDangerLevel(){
   return Math.max(0, base - hunters*0.06 - guards*0.04);
 }
 
-// Сколько лекарей работает
 function healers(){
   let h=0;
   for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
@@ -1522,7 +1459,6 @@ function healers(){
   return h;
 }
 
-// Болезни: жители могут заболеть; лечебница снижает вероятность и лечит
 function sickness(){
   if (S.citizens.length===0) return;
   const docs = healers();
@@ -1530,24 +1466,21 @@ function sickness(){
   if (docs>0) baseChance -= 0.012;
   if (hasTech('medicine')) baseChance *= 0.5;
   if (blessActive('health')) baseChance *= 0.2;
-  const someoneGotSick=true;
   let newlySick = 0;
   for (const c of S.citizens){
     if (c.sick) continue;
     if (Math.random() < Math.max(0.002, baseChance)){
-      c.sick = docs>0 ? 3 : 7;   // с врачами болеют короче и реже
+      c.sick = docs>0 ? 3 : 7;
       newlySick++;
     }
   }
   if (newlySick>0) addLog(`🤒 ${newlySick==1?'Один житель':newlySick+' жителя'} заболел(и). Лечите болезнь лечебницей!`,'bad');
-  // лечение и смерть больных
   let died=0;
   S.citizens = S.citizens.filter(c=>{
     if (!c.sick) return true;
-    c.sick--;                       // дни болезни
-    if (docs>0) c.sick--;           // врачи ускоряют выздоровление
-    if (c.sick<=0){ c.sick=0; return true; }        // выздоровел
-    // без врачей болезнь может убить
+    c.sick--;
+    if (docs>0) c.sick--;
+    if (c.sick<=0){ c.sick=0; return true; }
     if (c.age>=60 || Math.random()<0.02) { died++; return false; }
     return true;
   });
@@ -1563,13 +1496,11 @@ function randomEvent(){
     else if (ev<0.8){ banditRaid(); }
     else { const st=Math.floor(Math.random()*5)+1; S.resources.gold=Math.max(0,S.resources.gold-st); addLog(`🎭 Бродяги украли ${st} золота!`,'bad'); }
   }
-  // дикие звери
   if (S.day>3 && Math.random()< (S.wildDanger||0.15)){
     wildAttack();
   }
 }
 
-// Общая защита города: стены, рвы, частоколы, башни (только рабочие башни)
 function defensePower(){
   let def=0, towers=0;
   for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
@@ -1583,7 +1514,6 @@ function defensePower(){
   return { total:def, towers };
 }
 
-// Сколько воинов (стража + лучники в башнях)
 function soldierCount(){
   let n=0;
   for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
@@ -1598,11 +1528,9 @@ function banditRaid(){
   if (S.shieldDays > 0){ addLog('🛡 Щит отразил набег — город в безопасности','good'); return; }
   const defP = defensePower();
   const soldiers = soldierCount();
-  const strength = (3 + Math.floor(Math.random()*6)) * diff().raid;    // сила набега
+  const strength = (3 + Math.floor(Math.random()*6)) * diff().raid;
   const totalDef = defP.total + soldiers*6;
   if (Math.random()<0.5 || totalDef>=strength*2){
-    // отражён
-    const lost = Math.floor(Math.random()*4);
     if (totalDef>=strength*2){ addLog(`🛡 Грабители отбиты! Оборона сработала (${totalDef} против ${strength}).`,'good'); }
     else {
       const stolen = Math.floor(Math.random()*8);
@@ -1610,21 +1538,16 @@ function banditRaid(){
       addLog(`🛡 Грабители прорвались, украли ${stolen} золота.`,'bad');
     }
   } else {
-    // набег удачен
     const stolen = Math.floor(Math.random()*15)+3;
-    const lim=limits();
     S.resources.gold=Math.max(0,S.resources.gold-stolen);
     addLog(`🥷 Грабители разграбили город! -${stolen} золота.`,'bad');
   }
 }
 
-// Атака диких зверей
 function wildAttack(){
   const defP = defensePower();
   const soldiers = soldierCount();
-  const guards = (S.citizens.filter(c=>c.age>=16&&!c.sick).length);
-  const threat = 1.0;
-  const protection = defP.total*0.5 + soldiers*8 + (S.wildDanger*0);
+  const protection = defP.total*0.5 + soldiers*8;
   if (Math.random() < 0.5+ (1-protection/30)){
     const victim = S.citizens.find(c=>c.age>=14);
     if (victim){
@@ -1637,8 +1560,6 @@ function wildAttack(){
   }
 }
 
-// ---------- Отрисовка ----------
-// --- Помощники отрисовки ---
 function shadeHex(hex, amt){
   const h = String(hex).replace('#','');
   const n = parseInt(h, 16);
@@ -1666,7 +1587,6 @@ function renderBoard(){
   ctx.clearRect(0,0,W,H);
   const sea = currentSeason();
 
-  // земля и вода
   for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++){
     const x = c*CELL, y = r*CELL;
     const t = S.water[r][c];
@@ -1696,12 +1616,10 @@ function renderBoard(){
     }
   }
 
-  // сетка
   ctx.strokeStyle = 'rgba(0,0,0,.10)'; ctx.lineWidth = 1;
   for (let i=0;i<=COLS;i++){ ctx.beginPath(); ctx.moveTo(i*CELL,0); ctx.lineTo(i*CELL,H); ctx.stroke(); }
   for (let i=0;i<=ROWS;i++){ ctx.beginPath(); ctx.moveTo(0,i*CELL); ctx.lineTo(W,i*CELL); ctx.stroke(); }
 
-  // дороги
   for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++){
     if (!S.roads[r][c]) continue;
     const x = c*CELL, y = r*CELL;
@@ -1721,7 +1639,6 @@ function renderBoard(){
     ctx.setLineDash([]);
   }
 
-  // месторождения
   const depShow = {
     forest:{c:'#2e7d32', t:'🌲'},
     rock:  {c:'#607d8b', t:'⛰'},
@@ -1752,7 +1669,6 @@ function renderBoard(){
     roundRectPath(x+5, y+CELL-8, (CELL-10)*frac, 3, 1.5); ctx.fill();
   }
 
-  // здания
   const sprite={farm:{c:'#7cb342',t:'🌾'},pasture:{c:'#9ccc65',t:'🐄'},lumber:{c:'#6d4c41',t:'🌲'},
     stone:{c:'#78909c',t:'⛏'},mine:{c:'#8a6d3b',t:'⛏'},goldmine:{c:'#f9a825',t:'💎'},
     hunter:{c:'#558b2f',t:'🏹'},guard:{c:'#455a64',t:'🗼'},
@@ -1794,7 +1710,6 @@ function renderBoard(){
     }
   }
 
-  // сезонная тонировка и виньетка
   if (sea.name === 'Зима'){ ctx.fillStyle = 'rgba(220,235,255,.26)'; ctx.fillRect(0,0,W,H); }
   else if (sea.name === 'Осень'){ ctx.fillStyle = 'rgba(255,150,60,.06)'; ctx.fillRect(0,0,W,H); }
   else if (sea.name === 'Лето'){ ctx.fillStyle = 'rgba(255,220,120,.05)'; ctx.fillRect(0,0,W,H); }
@@ -1809,7 +1724,6 @@ function renderBoard(){
   ctx.strokeRect(0.5, 0.5, W-1, H-1);
 }
 
-// ---------- UI ----------
 function updateUI(){
   document.getElementById('st-day').textContent=S.day;
   const sea=currentSeason();
@@ -1821,7 +1735,6 @@ function updateUI(){
   else if(S.happiness>=40){geo.textContent='😐 Нормально';h.style.color='#ffd54f';}
   else{geo.textContent='😡 Недовольно';h.style.color='#ef5350';}
 
-  // Статистика города: население, больные, оборона, воины
   const sick = S.citizens.filter(c=>c.sick).length;
   const defP = defensePower();
   const sold = soldierCount();
@@ -1848,7 +1761,6 @@ function updateUI(){
       ${p>0?`<span class="rate">напр.+${p}</span>`:''}`;
     resbar.appendChild(d);
   }
-  // вера
   const faithEl=document.getElementById('st-faith');
   if (faithEl) faithEl.textContent = Math.floor(S.faith||0);
 
@@ -1868,7 +1780,6 @@ function seasonNote(sea){
   if(m.wood!==1) parts.push('др x'+m.wood);
   if(m.stone!==1) parts.push('кам x'+m.stone);
   const nex=nextSeason();
-  // ИСПРАВЛЕНО: вместо мусорного « че/ » — понятный разделитель
   return '→ '+nex.emo+' '+nex.name+' · '+(parts.length?parts.join(', '):'обычный сезон');
 }
 
@@ -1954,7 +1865,6 @@ function renderReligion(){
   head.className='bar-title'; head.style.width='100%';
   head.innerHTML=`<span>🕯 Вера: <b style="color:var(--gold)">${Math.floor(S.faith||0)}</b></span>`;
   p.appendChild(head);
-  // выбор бога
   for (const key in GODS){
     const g=GODS[key], d=document.createElement('div');
     const sel = S.god===key;
@@ -1968,7 +1878,6 @@ function renderReligion(){
     };
     p.appendChild(d);
   }
-  // благословения
   const bl=document.createElement('div');
   bl.className='bar-title'; bl.style.width='100%';
   bl.textContent='✨ Благословения';
@@ -2004,7 +1913,6 @@ function renderPeople(){
   p.innerHTML='';
   const head=document.createElement('div');
   head.className='bar-title'; head.style.width='100%';
-  const working = S.citizens.filter(c=>c.sick||c.age<10).length;
   head.innerHTML=`<span>👥 Жителей: <b>${S.citizens.length}</b> из ${S.maxPop} · свободных работников: <b>${S.freeWorkers||0}</b></span>`;
   p.appendChild(head);
   const rows=document.createElement('div');
@@ -2061,7 +1969,6 @@ function clickedTech(k){
   renderBoard(); updateUI();
 }
 
-// ---------- Клик ----------
 CV.addEventListener('click',(e)=>{
   if(!S||S.over) return;
   const rect=CV.getBoundingClientRect();
@@ -2078,7 +1985,6 @@ function buildAt(r,c){
   if(!S.selectedType){ addLog('Сначала выберите здание 👇','bad'); return; }
   const type=S.selectedType;
   const b=BUILDINGS[type];
-  // дорога — особый случай
   if (type==='road'){
     if (S.land[r][c]){ addLog('Здесь уже есть постройка','bad'); return; }
     if (S.roads[r][c]){ addLog('Дорога уже есть','bad'); return; }
@@ -2094,7 +2000,6 @@ function buildAt(r,c){
   if(S.land[r][c]){ addLog('Здесь уже есть постройка','bad'); return; }
   if(S.roads[r][c]){ addLog('Здесь проложена дорога — снесите её','bad'); return; }
   const wet=S.water[r][c];
-  // проверка размещения на воде до оплаты
   if (b.onWater){ if(wet===0){ addLog('Корабль нужно строить на воде!','bad'); return; } if(b.water==='sea'&&wet!==2){ addLog('Торговый корабль — только на солёном море!','bad'); return; } }
   else if (wet!==0){ addLog('На воде нельзя строить это здание','bad'); return; }
   if (b.unlock && !hasTech(b.unlock)){ addLog(`Нужна технология «${TECHS[b.unlock].name}»`,'bad'); return; }
@@ -2120,7 +2025,6 @@ function buildAt(r,c){
   } else addLog('Недостаточно ресурсов!','bad');
 }
 
-// ---------- Вкладки ----------
 document.querySelectorAll('.tabbtn[data-tab]').forEach(btn=>{
   btn.onclick=()=>{
     const tab=btn.dataset.tab;
@@ -2131,7 +2035,6 @@ document.querySelectorAll('.tabbtn[data-tab]').forEach(btn=>{
   };
 });
 
-// ---------- Кнопки ----------
 document.getElementById('btn-demolish').onclick=()=>setBuildMode('demolish');
 document.getElementById('btn-upgrade').onclick=()=>setBuildMode('upgrade');
 document.getElementById('btn-speed').onclick=()=>{
@@ -2139,9 +2042,11 @@ document.getElementById('btn-speed').onclick=()=>{
   document.getElementById('btn-speed').textContent='▶x'+S.speed;
   startLoop(BASE_TICK/S.speed);
 };
+// ---- ИЗМЕНЕНО ПО ПАТЧУ: пауза теперь сразу обновляет интерфейс ----
 document.getElementById('btn-pause').onclick=()=>{
   S.paused=!S.paused;
   syncPauseBtn();
+  updateUI();
 };
 function syncPauseBtn(){
   document.getElementById('btn-pause').textContent=S.paused?'▶ Продолжить':'⏸ Пауза';
@@ -2162,7 +2067,6 @@ function saveGame(){
 }
 document.getElementById('btn-save').onclick=()=>saveGame();
 
-// Приведение загруженного сейва к текущей версии игры
 function normalizeLoaded(){
   if(!S.fertility) S.fertility=genFertility();
   if(!S.water) S.water=genWater();
@@ -2217,12 +2121,10 @@ function normalizeLoaded(){
 }
 
 function loadGame(){
-  // 1. локальное сохранение — работает и в браузере, и в Telegram
   try {
     const s = localStorage.getItem(SAVE_KEY);
     if (s){ S = JSON.parse(s); normalizeLoaded(); addLog('↩️ Игра загружена','good'); }
   } catch(e){}
-  // 2. облако Telegram — если там сейв свежее, берём его
   try {
     if (TG && TG.CloudStorage){
       TG.CloudStorage.getItem('citySave', (err, val)=>{
@@ -2240,7 +2142,6 @@ function loadGame(){
   } catch(e){}
 }
 
-// ---------- Лог ----------
 function addLog(text,cls){
   if(!S.msg) S.msg=[];
   S.msg.unshift({t:text,c:cls||'evt'});
@@ -2249,34 +2150,116 @@ function addLog(text,cls){
   S.msg.forEach(m=>{ const d=document.createElement('div'); d.className='log-'+m.c; d.textContent=m.t; log.appendChild(d); });
 }
 
-// ---------- Финал ----------
+// =========================================================
+// ИЗМЕНЕНО ПО ПАТЧУ: гибель города через showDeathPrompt()
+// =========================================================
+const REVIVE_COST = 15;
+
 function checkEnd(){
   if(!S||S.over) return;
   const day=S.day;
-  if(S.pop<=0&&day>3){ end(false,`Город опустел на ${day} день. Всё население погибло.`); return; }
-  if(S.pop>=25 && S.happiness>=70 && day>=20){ end(true,`За ${day} дней вы выросли в процветающий город с ${Math.floor(S.pop)} жителями!`); }
+  // смерть последнего жителя — отдельный сценарий с возрождением за 💎
+  if (S.citizens.length <= 0 && day > 3){ showDeathPrompt(); return; }
+  if(S.citizens.length >= 25 && S.happiness>=70 && day>=20){
+    end(true, `За ${day} дней вы выросли в процветающий город с ${Math.floor(S.citizens.length)} жителями!`);
+  }
 }
+
+function showDeathPrompt(){
+  if (!S) return;
+  S.paused = true;
+  S.over = true;
+  syncPauseBtn();
+
+  const ov = document.getElementById('overlay');
+  if (!ov) return;
+  ov.classList.remove('hidden');
+
+  document.getElementById('modal-title').textContent = '💀 ГОРОД ОПУСТЕЛ';
+  document.getElementById('modal-sub').textContent =
+    `Все жители погибли на ${S.day}-й день. Город можно возродить за самоцветы или начать заново.`;
+
+  document.getElementById('modal-stats').innerHTML = `
+    <div>📅 День <b>${S.day}</b></div>
+    <div>💎 Самоцветы <b>${Math.floor(S.gems||0)}</b></div>
+    <div>🔬 Технологии <b>${Object.keys(S.techs||{}).length}</b></div>`;
+
+  document.getElementById('modal-goal').textContent =
+    `Возрождение стоит ${REVIVE_COST} 💎 и даёт двух новых жителей.`;
+
+  const btn = document.getElementById('modal-btn');
+  const canRevive = (S.gems||0) >= REVIVE_COST;
+  btn.textContent = canRevive
+    ? `💎 Возродить (${REVIVE_COST} 💎)`
+    : `💎 Не хватает самоцветов`;
+  btn.disabled = !canRevive;
+  btn.onclick = () => {
+    if ((S.gems||0) < REVIVE_COST){ toast('Не хватает самоцветов','bad'); return; }
+    S.gems -= REVIVE_COST;
+    S.citizens = [];
+    for (let i=0;i<2;i++) S.citizens.push(makeCitizen(18));
+    syncPop();
+    S.hungryDays = 0;
+    S.over = false;
+    S.paused = false;
+    ov.classList.add('hidden');
+    const rb = document.getElementById('modal-restart');
+    if (rb) rb.style.display = 'none';
+    syncPauseBtn();
+    addLog('🌟 Город возрождён! Два новых жителя прибыли.','good');
+    haptic('ok');
+    assignWorkers();
+    renderBoard(); updateUI(); saveGameSilent();
+  };
+
+  let rb = document.getElementById('modal-restart');
+  if (!rb){
+    rb = document.createElement('button');
+    rb.id = 'modal-restart';
+    rb.className = 'grey';
+    rb.style.marginTop = '10px';
+    rb.style.marginLeft = '8px';
+    document.querySelector('#overlay .modal').appendChild(rb);
+  }
+  rb.style.display = '';
+  rb.textContent = '🔄 Начать заново';
+  rb.onclick = restartCity;
+
+  haptic('err');
+}
+
+function restartCity(){
+  try { localStorage.removeItem(SAVE_KEY); } catch(e){}
+  try {
+    if (TG && TG.CloudStorage) TG.CloudStorage.removeItem('citySave', ()=>{});
+  } catch(e){}
+  location.reload();
+}
+
 function end(win,reason){ S.over=true; S.win=win; overlay(win,reason); }
+
 function overlay(win,reason){
   document.getElementById('overlay').classList.remove('hidden');
   document.getElementById('modal-title').textContent=win?'🎉 ГОРОД ПРОЦВЕТАЕТ!':'💀 ГОРОД ПАЛ';
   document.getElementById('modal-sub').textContent=reason;
   const techs=Object.keys(S.techs).length;
   document.getElementById('modal-stats').innerHTML=`
-    <div>👥 Население <b>${Math.floor(S.pop)}</b></div>
+    <div>👥 Население <b>${Math.floor(S.citizens.length)}</b></div>
     <div>📅 День <b>${S.day}</b></div>
     <div>😊 Счастье <b>${Math.round(S.happiness)}%</b></div>
     <div>🔬 Технологии <b>${techs}</b></div>`;
   document.getElementById('modal-goal').textContent=
     win?'Эпоха процветания наступила!':'Цель: 25+ жителей, счастье 70%+, дожить до 20 дня. Исследуйте технологии!';
-  document.getElementById('modal-btn').textContent='🔄 Играть заново';
-  document.getElementById('modal-btn').onclick=()=>location.reload();
+  const mb = document.getElementById('modal-btn');
+  mb.textContent='🔄 Играть заново';
+  mb.disabled = false;
+  mb.onclick=()=>location.reload();
+  const rb = document.getElementById('modal-restart');
+  if (rb) rb.style.display = 'none';
 }
 
 /* ================== МОНЕТИЗАЦИЯ И UX 2.0 ================== */
 
-// URL бэкенда, который создаёт счета Telegram Stars (например https://ваш-бот.ру).
-// Пустая строка = демо-режим: покупка за Stars недоступна, всё остальное работает.
 const PAY_BACKEND = '';
 
 const GEM_PACKS = [
@@ -2318,7 +2301,6 @@ const GEM_ITEMS = [
     buy(){ S.doublequest = true; } },
 ];
 
-// Разовые наборы за звёзды: дают больше, чем пакет самоцветов
 const STAR_BUNDLES = [
   { sku:'starter', ico:'🎁', title:'Стартовый набор', desc:'200 💎 + ускорение x2 на 3 дня + щит 5 дней', stars:79, gems:200, noDouble:true,
     apply(){ S.boosts.double = Math.max(S.boosts.double||0, 3); S.shieldDays = Math.max(S.shieldDays||0, 5); } },
@@ -2357,7 +2339,6 @@ function dailyBonus(){
   renderShop(); renderOffer(); updateUI(); saveGameSilent();
 }
 
-// Покупка самоцветов за Telegram Stars (нужен бэкенд, создающий инвойс)
 async function buyStarsPack(pack){
   if (!PAY_BACKEND){
     toast('Демо-режим: оплата Stars подключается через бэкенд (PAY_BACKEND)','gem');
@@ -2372,11 +2353,11 @@ async function buyStarsPack(pack){
     TG.openInvoice(data.link, (status)=>{
       if (status === 'paid'){
         const first = S.firstPurchase !== false;
-        const mult = (first && !pack.noDouble) ? 2 : 1;
-        if (pack.gems) grantGems(pack.gems * mult);
+        const mult2 = (first && !pack.noDouble) ? 2 : 1;
+        if (pack.gems) grantGems(pack.gems * mult2);
         if (pack.apply) { try { pack.apply(); } catch(e){} }
         S.firstPurchase = false;
-        toast(mult > 1 ? '💎 +' + pack.gems*2 + ' · ×2 за первую покупку!' : '💎 +' + (pack.gems||0) + ' — спасибо за поддержку!','gem');
+        toast(mult2 > 1 ? '💎 +' + pack.gems*2 + ' · ×2 за первую покупку!' : '💎 +' + (pack.gems||0) + ' — спасибо за поддержку!','gem');
         renderShop(); updateUI(); saveGameSilent();
       } else if (status === 'failed'){
         toast('Платёж не прошёл','bad');
@@ -2412,7 +2393,6 @@ function renderShop(){
   dailyBtn.onclick = dailyBonus;
   p.appendChild(dailyBtn);
 
-  // --- Пакеты за Telegram Stars (только внутри Telegram) ---
   if (TG){
     const sec1 = document.createElement('div');
     sec1.className = 'shop-section';
@@ -2444,7 +2424,6 @@ function renderShop(){
     p.appendChild(note);
   }
 
-  // --- Товары за самоцветы ---
   const sec2 = document.createElement('div');
   sec2.className = 'shop-section';
   const t2 = document.createElement('div');
@@ -2544,15 +2523,16 @@ function saveGameSilent(){
     if (TG && TG.CloudStorage) TG.CloudStorage.setItem('citySave', str, ()=>{});
   } catch(e){}
 }
+// ---- ИЗМЕНЕНО ПО ПАТЧУ: пустой город не сохраняется ----
 function maybeAutoSave(){
   if (!S) return;
+  if (S.over || !S.citizens || S.citizens.length === 0) return;
   if (S.day - lastAutoSaveDay >= 5){
     lastAutoSaveDay = S.day;
     saveGameSilent();
   }
 }
 
-// Премиум и ускорение влияют на производство
 const _multBase = mult;
 mult = function(kind){
   let m = _multBase(kind);
@@ -2565,6 +2545,8 @@ mult = function(kind){
 const FXC = document.getElementById('fx');
 const fx = FXC ? FXC.getContext('2d') : null;
 let fxFlakes = [], fxFloats = [], hoverCell = null, lastFxDay = -1;
+// ---- ИЗМЕНЕНО ПО ПАТЧУ: ограничение частоты FX-кадра ~20 fps ----
+let fxLast = 0;
 
 function fxResize(){
   try { if (FXC && CV){ FXC.width = CV.width; FXC.height = CV.height; } } catch(e){}
@@ -2578,10 +2560,11 @@ function fxFrame(ts){
   if (!fx) return;
   requestAnimationFrame(fxFrame);
   if (!S) return;
+  if (ts - fxLast < 50) return;   // ~20 кадров/с: меньше нагрузки на телефон
+  fxLast = ts;
   const W = FXC.width, H = FXC.height, t = (ts||0)/1000;
   fx.clearRect(0,0,W,H);
 
-  // блики на воде
   if (!S.paused){
     fx.fillStyle = 'rgba(255,255,255,.10)';
     for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++){
@@ -2591,7 +2574,6 @@ function fxFrame(ts){
     }
   }
 
-  // снег зимой
   let winter = false;
   try { winter = currentSeason().name === 'Зима'; } catch(e){}
   if (winter){
@@ -2604,7 +2586,6 @@ function fxFrame(ts){
     }
   } else if (fxFlakes.length) fxFlakes.length = 0;
 
-  // подсветка клетки под пальцем/курсором
   if (hoverCell){
     const r = hoverCell.r, c = hoverCell.c;
     let ok = true;
@@ -2623,7 +2604,6 @@ function fxFrame(ts){
     fx.strokeRect(c*CELL+1, r*CELL+1, CELL-2, CELL-2);
   }
 
-  // всплывающие ресурсы при новом дне
   if (S.day !== lastFxDay){
     lastFxDay = S.day;
     const icons = { farm:'🌾', pasture:'🥛', lumber:'🪵', stone:'🪨', mine:'⛏', goldmine:'💰', fishboat:'🐟', hunter:'🍖', market:'💰', merchant:'⛵' };
@@ -2658,7 +2638,6 @@ function fxHoverFromEvent(e){
   hoverCell = (r<0||r>=ROWS||c<0||c>=COLS) ? null : { r, c };
 }
 
-/* ================== ВСТУПЛЕНИЕ ================== */
 function showIntro(){
   try {
     if (S.introShown || S.day > 1) return;
@@ -2682,6 +2661,8 @@ function showIntro(){
       saveGameSilent();
       haptic('light');
     };
+    const rb = document.getElementById('modal-restart');
+    if (rb) rb.style.display = 'none';
   } catch(e){}
 }
 
@@ -2841,7 +2822,6 @@ function applyThemeClass(){
   } catch(e){}
 }
 
-/* ---- Престиж: новая эпоха ---- */
 const _endBase = end;
 end = function(win, reason){
   _endBase(win, reason);
@@ -2893,7 +2873,6 @@ function startNewEra(){
   saveGameSilent();
 }
 
-/* ---- Бонус эпох к производству ---- */
 const _multPrestigeBase = mult;
 mult = function(kind){
   let m = _multPrestigeBase(kind);
@@ -2901,7 +2880,6 @@ mult = function(kind){
   return m;
 };
 
-/* ---- Обновление прогресс-бара и советника ---- */
 function updateEngagementUI(){
   try {
     const lv = document.getElementById('st-level');
@@ -2955,7 +2933,7 @@ function initEngagement(){
   updateEngagementUI();
 }
 
-/* ================== УЛУЧШЕНИЯ ЗДАНИЙ, ДОСТИЖЕНИЯ, СОБЫТИЯ ================== */
+/* ================== УЛУЧШЕНИЯ, ДОСТИЖЕНИЯ, СОБЫТИЯ ================== */
 
 const MAX_BLEVEL = 5;
 
@@ -3011,7 +2989,6 @@ function upgradeAt(r,c){
   renderBoard(); updateUI(); saveGameSilent();
 }
 
-/* ---- Достижения ---- */
 function renderAchievements(){
   const p = document.getElementById('achPanel');
   const pane = document.getElementById('pane-ach');
@@ -3033,7 +3010,6 @@ function renderAchievements(){
   }
 }
 
-/* ---- Случайные события с выбором ---- */
 const EVENT_POOL = [
   { ico:'🐫', title:'Караван торговцев', text:'Предлагают 120 еды за 20 золота.',
     options:[
@@ -3065,7 +3041,7 @@ const EVENT_POOL = [
 let eventOpen = false;
 
 function maybeRandomChoice(){
-  if (!S || S.over || eventOpen) return;
+  if (!S || S.over || S.paused || eventOpen) return;
   if (!S.nextEventDay) S.nextEventDay = 9 + Math.floor(Math.random()*4);
   if (S.day < S.nextEventDay) return;
   S.nextEventDay = S.day + 9 + Math.floor(Math.random()*6);
@@ -3102,7 +3078,6 @@ function showEvent(ev){
   } catch(e){ eventOpen = false; }
 }
 
-/* ---- Бонус наёмников к обороне ---- */
 const _defenseBase = defensePower;
 defensePower = function(){
   const r = _defenseBase();
@@ -3110,14 +3085,12 @@ defensePower = function(){
   return r;
 };
 
-/* ---- Достижения обновляются вместе с интерфейсом ---- */
 const _updateEngBase = updateEngagementUI;
 updateEngagementUI = function(){
   _updateEngBase();
   try { renderAchievements(); } catch(e){}
 };
 
-/* ---- Выбор здания сбрасывает режим сноса/улучшения ---- */
 const _selectBase = select;
 select = function(type){
   _selectBase(type);
@@ -3171,12 +3144,14 @@ function diffShowIntro(){
     document.getElementById('modal-goal').textContent = 'Цель: 25+ жителей и 70%+ счастья к 20-му дню.';
     const btn = document.getElementById('modal-btn');
     btn.textContent = 'Оставить обычную';
+    btn.disabled = false;
     btn.onclick = ()=>{ ov.classList.add('hidden'); S.paused=false; syncPauseBtn(); saveGameSilent(); };
+    const rb = document.getElementById('modal-restart');
+    if (rb) rb.style.display = 'none';
   } catch(e){}
 }
 showIntro = diffShowIntro;
 
-// Ежедневное давление: порча еды, содержание города, щит
 function difficultyTick(){
   if (!S) return;
   const d = diff();
@@ -3206,7 +3181,6 @@ function difficultyTick(){
   if (S.patron) S.gems = (S.gems||0) + 2;
 }
 
-/* Производство: сложность и покровитель */
 const _multDiffBase = mult;
 mult = function(kind){
   let m = _multDiffBase(kind);
@@ -3217,7 +3191,6 @@ mult = function(kind){
   return m;
 };
 
-/* Двойные награды заданий (удобство) */
 const _claimBase = claimQuest;
 claimQuest = function(id){
   const q = (S.quests||[]).find(x=>x.id===id);
@@ -3302,15 +3275,15 @@ function initPolish(){
 // ---------- Старт ----------
 init();
 loadGame();
-S.paused = true;   // игра начинается с паузы
+S.paused = true;
 syncPauseBtn();
 renderBoard();
 updateUI();
 startLoop(BASE_TICK);
-tgInit();          // интеграция с Telegram (если открыто в Telegram)
-initMeta();        // эффекты, магазин, цели, вступление
-initEngagement();  // задания дня, серия, тема, уровень
-initPolish();      // подсказки при наведении на клетки
+tgInit();
+initMeta();
+initEngagement();
+initPolish();
 </script>
 </body>
-</html>
+      </html>
